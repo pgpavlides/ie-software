@@ -41,19 +41,17 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
 
   const connectAnyDesk = async (anydeskId: string) => {
     try {
-      // First copy the ID to clipboard
+      // Remove spaces from AnyDesk ID for the protocol
+      const cleanId = anydeskId.replace(/\s+/g, '');
+      
+      // First copy the original ID to clipboard (with spaces for readability)
       await navigator.clipboard.writeText(anydeskId);
       
-      // Try different AnyDesk protocol formats
-      const protocols = [
-        `anydesk:${anydeskId}`,
-        `anydesk://${anydeskId}`,
-        `anydesk:connect?id=${anydeskId}`,
-        `anydesk://connect/${anydeskId}`
-      ];
+      // Use the clean ID for the protocol URL
+      const anydeskUrl = `anydesk:${cleanId}`;
       
-      // Try the first protocol
-      window.location.href = protocols[0];
+      // Open AnyDesk with the clean ID
+      window.location.href = anydeskUrl;
     } catch (error) {
       // Fallback: just copy to clipboard silently
       try {
