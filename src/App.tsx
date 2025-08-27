@@ -10,11 +10,13 @@ import ReportsPage from './components/ReportsPage'
 import UtilitiesPage from './components/UtilitiesPage'
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import LoginPage from './components/LoginPage'
 
 type ViewType = 'home' | 'countries' | 'cities' | 'rooms';
 type CategoryType = 'dashboard' | 'room' | 'technical' | 'monitoring' | 'security' | 'reports' | 'utilities';
 
-function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState<ViewType>('home')
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('dashboard')
   const [selectedCountry, setSelectedCountry] = useState<string>('')
@@ -77,6 +79,12 @@ function App() {
     setSelectedCity('')
   }
 
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
   return (
     <ThemeProvider>
       <DeveloperOptionsProvider>
@@ -127,7 +135,15 @@ function App() {
         </Layout>
       </DeveloperOptionsProvider>
     </ThemeProvider>
-  )
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App

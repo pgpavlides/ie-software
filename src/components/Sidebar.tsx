@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useDeveloperOptions } from '../contexts/DeveloperOptionsContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   FiChevronsRight,
+  FiLogOut,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 
@@ -15,6 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
   const [open, setOpen] = useState(true);
   const { isEnabled: isDeveloperOptionsEnabled } = useDeveloperOptions();
   const { isLight } = useTheme();
+  const { currentUser, logout } = useAuth();
 
   const allMenuItems = [
     { 
@@ -95,6 +98,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
         ))}
       </div>
 
+      <UserInfo open={open} user={currentUser} />
+      <LogoutButton open={open} onLogout={logout} />
       <ToggleClose open={open} setOpen={setOpen} />
     </motion.nav>
   );
@@ -190,14 +195,82 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
   );
 };
 
+const UserInfo: React.FC<{ open: boolean; user: any }> = ({ open, user }) => {
+  if (!user) return null;
+  
+  return (
+    <div className="border-t pt-2 mt-2" style={{ borderColor: '#444' }}>
+      {open ? (
+        <div className="px-2 py-2">
+          <div className="text-xs font-medium" style={{ color: '#999999' }}>
+            {user.displayName}
+          </div>
+          <div className="text-xs" style={{ color: '#666666' }}>
+            {user.role}
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-center py-2">
+          <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+            <span className="text-xs font-bold text-white">
+              {user.username.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const LogoutButton: React.FC<{ open: boolean; onLogout: () => void }> = ({ open, onLogout }) => {
+  return (
+    <motion.button
+      layout
+      onClick={onLogout}
+      className="border-t transition-colors mt-2"
+      style={{
+        borderColor: '#444',
+        backgroundColor: 'transparent'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'rgba(234, 33, 39, 0.2)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
+    >
+      <div className="flex items-center p-2">
+        <motion.div
+          layout
+          className="grid size-10 place-content-center text-lg"
+          style={{color: '#999999'}}
+        >
+          <FiLogOut />
+        </motion.div>
+        {open && (
+          <motion.span
+            layout
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.125 }}
+            className="text-xs font-medium"
+            style={{color: '#999999'}}
+          >
+            Logout
+          </motion.span>
+        )}
+      </div>
+    </motion.button>
+  );
+};
+
 const ToggleClose: React.FC<{ open: boolean; setOpen: (open: boolean) => void }> = ({ open, setOpen }) => {
   return (
     <motion.button
       layout
       onClick={() => setOpen(!open)}
-      className="border-t transition-colors mt-2"
+      className="transition-colors"
       style={{
-        borderColor: '#444',
         backgroundColor: 'transparent'
       }}
       onMouseEnter={(e) => {
