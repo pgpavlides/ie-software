@@ -1,0 +1,21 @@
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+
+/*.js
+  Content-Type: text/javascript
+
+/*.mjs
+  Content-Type: text/javascript
+
+/*.ts
+  Content-Type: text/javascript
+
+/*.tsx
+  Content-Type: text/javascript
+
+/*.css
+  Content-Type: text/css
+
+/*.svg
+  Content-Type: image/svg+xml
