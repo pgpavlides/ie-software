@@ -45,14 +45,14 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-full p-8">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
             Developer Tools Dashboard
           </h1>
           <p className="text-xl text-gray-600">
-            Streamline your daily development tasks
+            Choose a category from the sidebar or select one below
           </p>
         </header>
 

@@ -10,7 +10,7 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
   
   if (!city) {
     return (
-      <div className="min-h-screen bg-white p-8">
+      <div className="min-h-full p-8">
         <div className="max-w-6xl mx-auto">
           <p className="text-red-600">City not found</p>
         </div>
@@ -40,7 +40,7 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
   };
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-full p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
           <button 

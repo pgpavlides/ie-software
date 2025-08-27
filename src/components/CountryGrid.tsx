@@ -26,7 +26,7 @@ export default function CountryGrid({ onSelectCountry, onBack }: CountryGridProp
   };
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-full p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
           <button 
