@@ -39,6 +39,31 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
     navigator.clipboard.writeText(text);
   };
 
+  const connectAnyDesk = async (anydeskId: string) => {
+    try {
+      // First copy the ID to clipboard
+      await navigator.clipboard.writeText(anydeskId);
+      
+      // Try different AnyDesk protocol formats
+      const protocols = [
+        `anydesk:${anydeskId}`,
+        `anydesk://${anydeskId}`,
+        `anydesk:connect?id=${anydeskId}`,
+        `anydesk://connect/${anydeskId}`
+      ];
+      
+      // Try the first protocol
+      window.location.href = protocols[0];
+    } catch (error) {
+      // Fallback: just copy to clipboard silently
+      try {
+        await navigator.clipboard.writeText(anydeskId);
+      } catch {
+        // Silent fail - do nothing
+      }
+    }
+  };
+
   return (
     <div className="min-h-full p-8">
       <div className="max-w-6xl mx-auto">
@@ -78,7 +103,16 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
                 <h3 className="text-lg font-semibold text-gray-800 flex-1">
                   {room.name}
                 </h3>
-                <span className="text-2xl ml-2">🖥️</span>
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-2xl">🖥️</span>
+                  <button
+                    onClick={() => connectAnyDesk(room.anydesk)}
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors"
+                    title="Copy ID and open AnyDesk"
+                  >
+                    Connect
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-2">
