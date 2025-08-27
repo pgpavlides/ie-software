@@ -3,9 +3,10 @@ import { getCityByName } from '../data/roomData';
 interface RoomDetailsProps {
   cityName: string;
   onBack: () => void;
+  onSelectRoom: (roomName: string) => void;
 }
 
-export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
+export default function RoomDetails({ cityName, onBack, onSelectRoom }: RoomDetailsProps) {
   const city = getCityByName(cityName);
   
   if (!city) {
@@ -95,7 +96,8 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
           {city.rooms.map((room, index) => (
             <div
               key={index}
-              className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+              onClick={() => onSelectRoom(room.name)}
+              className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-lg hover:border-red-300 transition-all cursor-pointer"
             >
               <div className="flex items-start justify-between mb-3">
                 <h3 className="text-lg font-semibold text-gray-800 flex-1">
@@ -104,11 +106,18 @@ export default function RoomDetails({ cityName, onBack }: RoomDetailsProps) {
                 <div className="flex items-center gap-2 ml-2">
                   <span className="text-2xl">🖥️</span>
                   <button
-                    onClick={() => connectAnyDesk(room.anydesk)}
-                    className="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors"
-                    title="Copy ID and open AnyDesk"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      connectAnyDesk(room.anydesk);
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Connect with AnyDesk"
                   >
-                    Connect
+                    <img 
+                      src="/logo/anydesk-seeklogo.png" 
+                      alt="AnyDesk"
+                      className="w-8 h-8 object-contain"
+                    />
                   </button>
                 </div>
               </div>

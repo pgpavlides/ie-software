@@ -4,6 +4,7 @@ import HomePage from './components/HomePage'
 import CountryGrid from './components/CountryGrid'
 import CityGrid from './components/CityGrid'
 import RoomDetails from './components/RoomDetails'
+import RoomInfo from './components/RoomInfo'
 import MonitoringPage from './components/MonitoringPage'
 import SecurityPage from './components/SecurityPage'
 import ReportsPage from './components/ReportsPage'
@@ -13,7 +14,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/LoginPage'
 
-type ViewType = 'home' | 'countries' | 'cities' | 'rooms';
+type ViewType = 'home' | 'countries' | 'cities' | 'rooms' | 'room-info';
 type CategoryType = 'dashboard' | 'room' | 'technical' | 'monitoring' | 'security' | 'reports' | 'utilities';
 
 function AppContent() {
@@ -21,6 +22,7 @@ function AppContent() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('dashboard')
   const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [selectedCity, setSelectedCity] = useState<string>('')
+  const [selectedRoom, setSelectedRoom] = useState<string>('')
 
   const handleNavigate = (category: string) => {
     setSelectedCategory(category as CategoryType)
@@ -61,6 +63,11 @@ function AppContent() {
     setCurrentView('rooms')
   }
 
+  const handleSelectRoom = (roomName: string) => {
+    setSelectedRoom(roomName)
+    setCurrentView('room-info')
+  }
+
   const handleBackToHome = () => {
     setCurrentView('home')
     setSelectedCategory('dashboard')
@@ -77,6 +84,11 @@ function AppContent() {
   const handleBackToCities = () => {
     setCurrentView('cities')
     setSelectedCity('')
+  }
+
+  const handleBackToRooms = () => {
+    setCurrentView('rooms')
+    setSelectedRoom('')
   }
 
   const { isAuthenticated } = useAuth();
@@ -113,6 +125,15 @@ function AppContent() {
             <RoomDetails 
               cityName={selectedCity}
               onBack={handleBackToCities}
+              onSelectRoom={handleSelectRoom}
+            />
+          )}
+          
+          {currentView === 'room-info' && (
+            <RoomInfo 
+              cityName={selectedCity}
+              roomName={selectedRoom}
+              onBack={handleBackToRooms}
             />
           )}
           
