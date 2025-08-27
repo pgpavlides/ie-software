@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="uuid-8910b264-cbb1-422c-bfb1-211e8b13daa2" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 250">
+  <defs>
+    <style>
+      .uuid-366f5d1a-6b11-4990-8411-517c0eb1d3fc {
+        fill: #1f7a8b;
+      }
+
+      .uuid-9bfedcb2-cb72-423a-9ab0-249f453160c3 {
+        fill: #be8e3f;
+      }
+    </style>
+  </defs>
+  <path class="uuid-9bfedcb2-cb72-423a-9ab0-249f453160c3" d="M79.48,123.1h55.86c33.6,0,60.88,27.28,60.88,60.88v30.16c0,4.62-3.75,8.38-8.38,8.38H26.98c-4.62,0-8.38-3.75-8.38-8.38v-30.16c0-33.6,27.28-60.88,60.88-60.88Z"/>
+  <circle class="uuid-9bfedcb2-cb72-423a-9ab0-249f453160c3" cx="107.72" cy="63.32" r="41.6"/>
+  <rect class="uuid-366f5d1a-6b11-4990-8411-517c0eb1d3fc" x="164.81" y="121.58" width="114.37" height="18.81" transform="translate(91.02 352.97) rotate(-90)"/>
+  <rect class="uuid-366f5d1a-6b11-4990-8411-517c0eb1d3fc" x="203.64" y="36.43" width="36.71" height="18.81" transform="translate(176.16 267.83) rotate(-90)"/>
+  <path class="uuid-366f5d1a-6b11-4990-8411-517c0eb1d3fc" d="M231.4,197.77l-7.52,29.36c-.39,1.54-3.37,1.54-3.76,0l-7.52-29.36h18.81Z"/>
+</svg>

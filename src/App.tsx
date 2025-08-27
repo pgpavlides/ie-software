@@ -1,34 +1,83 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import HomePage from './components/HomePage'
+import CountryGrid from './components/CountryGrid'
+import CityGrid from './components/CityGrid'
+import RoomDetails from './components/RoomDetails'
+
+type ViewType = 'home' | 'countries' | 'cities' | 'rooms';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [currentView, setCurrentView] = useState<ViewType>('home')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [selectedCountry, setSelectedCountry] = useState<string>('')
+  const [selectedCity, setSelectedCity] = useState<string>('')
+
+  const handleSelectCategory = (category: string) => {
+    setSelectedCategory(category)
+    if (category === 'room') {
+      setCurrentView('countries')
+    } else {
+      // For now, other categories will show a placeholder
+      alert(`${category} category is coming soon!`)
+    }
+  }
+
+  const handleSelectCountry = (country: string) => {
+    setSelectedCountry(country)
+    setCurrentView('cities')
+  }
+
+  const handleSelectCity = (city: string) => {
+    setSelectedCity(city)
+    setCurrentView('rooms')
+  }
+
+  const handleBackToHome = () => {
+    setCurrentView('home')
+    setSelectedCategory('')
+    setSelectedCountry('')
+    setSelectedCity('')
+  }
+
+  const handleBackToCountries = () => {
+    setCurrentView('countries')
+    setSelectedCountry('')
+    setSelectedCity('')
+  }
+
+  const handleBackToCities = () => {
+    setCurrentView('cities')
+    setSelectedCity('')
+  }
 
   return (
-    <>
-      <div className='bg-red-500'>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <div className="App">
+      {currentView === 'home' && (
+        <HomePage onSelectCategory={handleSelectCategory} />
+      )}
+      
+      {currentView === 'countries' && (
+        <CountryGrid 
+          onSelectCountry={handleSelectCountry} 
+          onBack={handleBackToHome}
+        />
+      )}
+      
+      {currentView === 'cities' && (
+        <CityGrid 
+          country={selectedCountry}
+          onSelectCity={handleSelectCity} 
+          onBack={handleBackToCountries}
+        />
+      )}
+      
+      {currentView === 'rooms' && (
+        <RoomDetails 
+          cityName={selectedCity}
+          onBack={handleBackToCities}
+        />
+      )}
+    </div>
   )
 }
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="uuid-3138e95f-9b82-48dd-87b9-034d0f7b9d67" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 141.33 159.78">
+  <defs>
+    <style>
+      .uuid-8177ee10-29bd-49cd-9be6-016ece4a644b {
+        fill: #be8e3f;
+      }
+    </style>
+  </defs>
+  <g id="uuid-ee9263ee-8a36-40f2-9533-090d1fb518f9" data-name="Layer 1">
+    <path class="uuid-8177ee10-29bd-49cd-9be6-016ece4a644b" d="M48.44,80.67h44.44c26.74,0,48.44,21.71,48.44,48.44v24c0,3.68-2.99,6.67-6.67,6.67H6.67C2.99,159.78,0,156.8,0,153.12v-24C0,102.38,21.71,80.67,48.44,80.67Z"/>
+    <circle class="uuid-8177ee10-29bd-49cd-9be6-016ece4a644b" cx="70.91" cy="33.1" r="33.1"/>
+  </g>
+</svg>

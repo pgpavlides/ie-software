@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="b" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" width="430" height="325" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 430 325">
+  <defs>
+    <style>
+      .h {
+        opacity: .6;
+      }
+
+      .i {
+        fill: #be8e3f;
+        filter: url(#d);
+      }
+
+      .j {
+        filter: url(#f);
+      }
+
+      .k {
+        fill: #e87574;
+      }
+    </style>
+    <filter id="d" data-name="drop-shadow-1" x="0" y="0" width="430" height="325" filterUnits="userSpaceOnUse">
+      <feOffset dx="12" dy="12"/>
+      <feGaussianBlur result="e" stdDeviation="8.6"/>
+      <feFlood flood-color="#000" flood-opacity=".8"/>
+      <feComposite in2="e" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+    <filter id="f" data-name="outer-glow-2" x="69.2" y="65.2" width="267" height="210" filterUnits="userSpaceOnUse">
+      <feOffset dx="0" dy="0"/>
+      <feGaussianBlur result="g" stdDeviation="10.5"/>
+      <feFlood flood-color="#e87574" flood-opacity=".8"/>
+      <feComposite in2="g" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <g id="c" data-name="Photos">
+    <g>
+      <g>
+        <polygon class="h" points="206.5 25.7 29.3 274.6 375.9 274.6 206.5 25.7"/>
+        <path class="i" d="M391,286H14.2L202.6,14.4l188.4,271.6ZM39.6,272.6h325.9L202.6,37.7,39.6,272.6Z"/>
+      </g>
+      <g class="j">
+        <path class="k" d="M264.5,187.9v18.7l16.5,24.5h-46s19.4-14.7,19.4-38.8-11.8-37.7-14.3-40.8c-.3-.4-.7-.9-1-1.3l-36.6-52.5-36.6,52.5c-.3.4-.6.9-1,1.3-2.5,3.1-14.3,19.2-14.3,40.8s16.8,38.8,16.8,38.8h-43.3l16.5-24.5v-19.7l-39.3,56.7h202.6l-39.3-55.7ZM187,140.7l15.6-23,15.6,23v24l-15.6-22-15.6,22v-24ZM202.6,231h0c-12.2,0-39.4-11.6-39.4-37s11.9-36.3,11.9-36.3v32.1c0,16.4,11.6,23,19.7,25.6,5.1,1.6,10.5,1.6,15.6,0,8.1-2.6,19.7-9.1,19.7-25.6v-32.1s11.9,10.9,11.9,36.3-24.3,37-39.4,37Z"/>
+      </g>
+    </g>
+  </g>
+</svg>
