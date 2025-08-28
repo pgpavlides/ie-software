@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useDeveloperOptions } from '../contexts/DeveloperOptionsContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
   FiChevronsRight,
@@ -16,7 +15,6 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
   const [open, setOpen] = useState(true);
   const { isEnabled: isDeveloperOptionsEnabled } = useDeveloperOptions();
-  const { isLight } = useTheme();
   const { currentUser, logout } = useAuth();
 
   const allMenuItems = [
@@ -82,6 +80,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
         borderColor: '#444'
       }}
     >
+      {/* Logo Section */}
+      <div className="p-4 border-b" style={{ borderColor: '#444' }}>
+        {open ? (
+          <img 
+            src="/logo/logo_name.png" 
+            alt="IE Software" 
+            className="h-8 w-auto object-contain"
+          />
+        ) : (
+          <div className="flex justify-center">
+            <img 
+              src="/logo/logo.png" 
+              alt="IE Software" 
+              className="h-8 w-8 object-contain"
+            />
+          </div>
+        )}
+      </div>
+      
       <div className={`flex-1 space-y-1 mt-2 ${open ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         {menuItems.map((item) => (
           <Option
@@ -93,7 +110,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
             selected={currentView}
             onSelect={onNavigate}
             open={open}
-            isLight={isLight}
           />
         ))}
       </div>
@@ -113,10 +129,9 @@ interface OptionProps {
   selected: string;
   onSelect: (view: string) => void;
   open: boolean;
-  isLight: boolean;
 }
 
-const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected, onSelect, open, isLight }) => {
+const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected, onSelect, open }) => {
   const isActive = selected === view;
   const [isHovered, setIsHovered] = React.useState(false);
   
@@ -128,10 +143,8 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
     if (isHovered) {
       return 'brightness(0) invert(1)'; // Always white when hovered
     }
-    // Default state - gray for both themes but different opacity
-    return isLight 
-      ? 'brightness(0) invert(0.6)' // Darker gray for light theme
-      : 'brightness(0) invert(0.4)'; // Lighter gray for dark theme
+    // Default state - red color to match brand
+    return 'brightness(0) saturate(100%) invert(19%) sepia(84%) saturate(3951%) hue-rotate(346deg) brightness(91%) contrast(103%)'; // Red (#ea2127)
   };
   
   return (

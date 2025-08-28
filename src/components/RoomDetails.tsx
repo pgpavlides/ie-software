@@ -69,7 +69,7 @@ export default function RoomDetails({ cityName, onBack, onSelectRoom }: RoomDeta
         <header className="mb-8">
           <button 
             onClick={onBack}
-            className="mb-4 flex items-center text-red-600 hover:text-red-800 transition-colors"
+            className="mb-4 flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
           >
             <span className="mr-2">←</span>
             Back to Cities

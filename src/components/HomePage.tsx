@@ -10,46 +10,53 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       id: 'room',
       title: 'Room',
       description: 'Access room management and AnyDesk connections',
-      icon: '🏠'
+      iconPath: '/icons/REGISTER PLAYER.svg'
     },
     {
       id: 'technical',
       title: 'Technical',
       description: 'Technical support and system diagnostics',
-      icon: '⚙️'
+      iconPath: '/icons/DEV TOOLS.svg'
     },
     {
       id: 'monitoring',
       title: 'Monitoring',
       description: 'System monitoring and performance tracking',
-      icon: '📊'
+      iconPath: '/icons/LIVE VIEW.svg'
     },
     {
       id: 'security',
       title: 'Security',
       description: 'Security management and access control',
-      icon: '🔐'
+      iconPath: '/icons/ADMINISTRATOR.svg'
     },
     {
       id: 'reports',
       title: 'Reports',
       description: 'Generate and view system reports',
-      icon: '📄'
+      iconPath: '/icons/SCOREBOARD.svg'
     },
     {
       id: 'utilities',
       title: 'Utilities',
       description: 'Various system utilities and tools',
-      icon: '🛠️'
+      iconPath: '/icons/SETTINGS.svg'
     }
   ];
 
   return (
-    <div className="min-h-full p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-full p-8 flex items-center justify-center">
+      <div className="max-w-6xl w-full">
         <header className="text-center mb-12">
+          <div className="mb-8">
+            <img 
+              src="/logo/logo.png" 
+              alt="IE Software Logo" 
+              className="h-24 w-24 mx-auto object-contain mb-6"
+            />
+          </div>
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Developer Tools Dashboard
+            IE Software Department
           </h1>
           <p className="text-xl text-gray-600">
             Choose a category from the sidebar or select one below
@@ -62,7 +69,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
               key={category.id}
               title={category.title}
               description={category.description}
-              icon={category.icon}
+              iconPath={category.iconPath}
               onClick={() => onSelectCategory(category.id)}
             />
           ))}
