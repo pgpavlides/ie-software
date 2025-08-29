@@ -51,10 +51,14 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack 
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {countries.map((country) => (
-            <div
+            <button
               key={country}
               onClick={() => onSelectCountry(country)}
-              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200"
+              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-label={`Select ${country} country`}
             >
               <div className="mb-4 text-center">
                 <img 
@@ -66,7 +70,7 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack 
               <h3 className="text-xl font-semibold text-gray-800 text-center">
                 {country}
               </h3>
-            </div>
+            </button>
           ))}
         </div>
       </div>

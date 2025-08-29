@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, useParams, useNavigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './components/HomePage'
 import EscapeRoomTypeGrid from './components/EscapeRoomTypeGrid'
@@ -12,178 +12,140 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/LoginPage'
 
-type ViewType = 'home' | 'escape-room-types' | 'countries' | 'cities' | 'rooms' | 'room-info';
 type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities';
 
+// Router-aware components
 function AppContent() {
-  const [currentView, setCurrentView] = useState<ViewType>('home')
-  const [selectedCategory, setSelectedCategory] = useState<CategoryType>('dashboard')
-  const [selectedEscapeRoomType, setSelectedEscapeRoomType] = useState<string>('')
-  const [selectedCountry, setSelectedCountry] = useState<string>('')
-  const [selectedCity, setSelectedCity] = useState<string>('')
-  const [selectedRoom, setSelectedRoom] = useState<string>('')
-
-  const handleNavigate = (category: string) => {
-    setSelectedCategory(category as CategoryType)
-    if (category === 'dashboard') {
-      setCurrentView('home')
-      // Reset navigation state when going back to dashboard
-      setSelectedEscapeRoomType('')
-      setSelectedCountry('')
-      setSelectedCity('')
-    } else if (category === 'room') {
-      if (currentView === 'home') {
-        setCurrentView('escape-room-types')
-      }
-    } else {
-      // Navigate to other category pages
-      setCurrentView('home')
-      setSelectedEscapeRoomType('')
-      setSelectedCountry('')
-      setSelectedCity('')
-    }
-  }
-
-  const handleSelectCategory = (category: string) => {
-    setSelectedCategory(category as CategoryType)
-    if (category === 'room') {
-      setCurrentView('escape-room-types')
-    } else {
-      // No need to show alert, just stay on current view
-      // The sidebar navigation will handle the page switching
-    }
-  }
-
-  const handleSelectEscapeRoomType = (typeId: string) => {
-    setSelectedEscapeRoomType(typeId)
-    setCurrentView('countries')
-  }
-
-  const handleSelectCountry = (country: string) => {
-    setSelectedCountry(country)
-    setCurrentView('cities')
-  }
-
-  const handleSelectCity = (city: string) => {
-    setSelectedCity(city)
-    setCurrentView('rooms')
-  }
-
-  const handleSelectRoom = (roomName: string) => {
-    setSelectedRoom(roomName)
-    setCurrentView('room-info')
-  }
-
-  const handleBackToHome = () => {
-    setCurrentView('home')
-    setSelectedCategory('dashboard')
-    setSelectedEscapeRoomType('')
-    setSelectedCountry('')
-    setSelectedCity('')
-  }
-
-  const handleBackToEscapeRoomTypes = () => {
-    setCurrentView('escape-room-types')
-    setSelectedEscapeRoomType('')
-    setSelectedCountry('')
-    setSelectedCity('')
-  }
-
-  const handleBackToCountries = () => {
-    setCurrentView('countries')
-    setSelectedCountry('')
-    setSelectedCity('')
-  }
-
-  const handleBackToCities = () => {
-    setCurrentView('cities')
-    setSelectedCity('')
-  }
-
-  const handleBackToRooms = () => {
-    setCurrentView('rooms')
-    setSelectedRoom('')
-  }
-
+  const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
     return <LoginPage />;
   }
 
+  // Determine current category based on URL
+  const getCurrentCategory = (): CategoryType => {
+    if (location.pathname.startsWith('/room')) return 'room';
+    if (location.pathname.startsWith('/guides')) return 'guides';
+    if (location.pathname.startsWith('/utilities')) return 'utilities';
+    return 'dashboard';
+  };
+
+  const handleNavigate = (category: string) => {
+    switch (category) {
+      case 'dashboard':
+        navigate('/');
+        break;
+      case 'room':
+        navigate('/room');
+        break;
+      case 'guides':
+        navigate('/guides');
+        break;
+      case 'utilities':
+        navigate('/utilities');
+        break;
+    }
+  };
+
+  const handleSelectCategory = (category: string) => {
+    handleNavigate(category);
+  };
+
   return (
     <ThemeProvider>
       <DeveloperOptionsProvider>
-        <Layout currentView={selectedCategory} onNavigate={handleNavigate}>
-          {/* Dashboard and Room flow */}
-          {currentView === 'home' && selectedCategory === 'dashboard' && (
-            <HomePage onSelectCategory={handleSelectCategory} />
-          )}
-          
-          {currentView === 'escape-room-types' && (
-            <EscapeRoomTypeGrid 
-              onSelectType={handleSelectEscapeRoomType} 
-              onBack={handleBackToHome}
-            />
-          )}
-          
-          {currentView === 'countries' && (
-            <CountryGrid 
-              escapeRoomTypeId={selectedEscapeRoomType}
-              onSelectCountry={handleSelectCountry} 
-              onBack={handleBackToEscapeRoomTypes}
-            />
-          )}
-          
-          {currentView === 'cities' && (
-            <CityGrid 
-              country={selectedCountry}
-              escapeRoomTypeId={selectedEscapeRoomType}
-              onSelectCity={handleSelectCity} 
-              onBack={handleBackToCountries}
-            />
-          )}
-          
-          {currentView === 'rooms' && (
-            <RoomDetails 
-              cityName={selectedCity}
-              escapeRoomTypeId={selectedEscapeRoomType}
-              onBack={handleBackToCities}
-              onSelectRoom={handleSelectRoom}
-            />
-          )}
-          
-          {currentView === 'room-info' && (
-            <RoomInfo 
-              cityName={selectedCity}
-              escapeRoomTypeId={selectedEscapeRoomType}
-              roomName={selectedRoom}
-              onBack={handleBackToRooms}
-            />
-          )}
-          
-          {/* Other category pages */}
-          {selectedCategory === 'guides' && (
-            <div className="p-8">
-              <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
-              <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
-            </div>
-          )}
-          
-          {selectedCategory === 'utilities' && (
-            <UtilitiesPage />
-          )}
+        <Layout currentView={getCurrentCategory()} onNavigate={handleNavigate}>
+          <Routes>
+            {/* Dashboard */}
+            <Route path="/" element={<HomePage onSelectCategory={handleSelectCategory} />} />
+            
+            {/* Room Flow */}
+            <Route path="/room" element={<EscapeRoomTypeGrid onSelectType={(typeId) => navigate(`/room/${typeId}`)} onBack={() => navigate('/')} />} />
+            <Route path="/room/:typeId" element={<CountryGridWrapper />} />
+            <Route path="/room/:typeId/:country" element={<CityGridWrapper />} />
+            <Route path="/room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
+            <Route path="/room/:typeId/:country/:city/:roomName" element={<RoomInfoWrapper />} />
+            
+            {/* Other Pages */}
+            <Route path="/guides" element={
+              <div className="p-8">
+                <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
+                <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
+              </div>
+            } />
+            <Route path="/utilities" element={<UtilitiesPage />} />
+          </Routes>
         </Layout>
       </DeveloperOptionsProvider>
     </ThemeProvider>
   );
 }
 
+// Wrapper components to handle URL parameters
+function CountryGridWrapper() {
+  const { typeId } = useParams<{ typeId: string }>();
+  const navigate = useNavigate();
+  
+  return (
+    <CountryGrid 
+      escapeRoomTypeId={typeId!}
+      onSelectCountry={(country) => navigate(`/room/${typeId}/${encodeURIComponent(country)}`)} 
+      onBack={() => navigate('/room')}
+    />
+  );
+}
+
+function CityGridWrapper() {
+  const { typeId, country } = useParams<{ typeId: string; country: string }>();
+  const navigate = useNavigate();
+  
+  return (
+    <CityGrid 
+      country={decodeURIComponent(country!)}
+      escapeRoomTypeId={typeId!}
+      onSelectCity={(city) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(city)}`)} 
+      onBack={() => navigate(`/room/${typeId}`)}
+    />
+  );
+}
+
+function RoomDetailsWrapper() {
+  const { typeId, country, city } = useParams<{ typeId: string; country: string; city: string }>();
+  const navigate = useNavigate();
+  
+  return (
+    <RoomDetails 
+      cityName={decodeURIComponent(city!)}
+      escapeRoomTypeId={typeId!}
+      onBack={() => navigate(`/room/${typeId}/${country}`)}
+      onSelectRoom={(roomName) => navigate(`/room/${typeId}/${country}/${city}/${encodeURIComponent(roomName)}`)}
+    />
+  );
+}
+
+function RoomInfoWrapper() {
+  const { typeId, country, city, roomName } = useParams<{ typeId: string; country: string; city: string; roomName: string }>();
+  const navigate = useNavigate();
+  
+  return (
+    <RoomInfo 
+      cityName={decodeURIComponent(city!)}
+      escapeRoomTypeId={typeId!}
+      roomName={decodeURIComponent(roomName!)}
+      onBack={() => navigate(`/room/${typeId}/${country}/${city}`)}
+    />
+  );
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </Router>
   );
 }
 

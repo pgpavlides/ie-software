@@ -8,13 +8,17 @@ interface CategoryCardProps {
 
 export default function CategoryCard({ title, description, iconPath, onClick, isActive = false }: CategoryCardProps) {
   return (
-    <div 
+    <button 
       onClick={onClick}
-      className={`p-6 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-lg ${
+      className={`p-6 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
         isActive 
           ? 'border-red-600 bg-red-50 shadow-lg' 
           : 'border-gray-200 bg-white hover:border-red-200'
       }`}
+      type="button"
+      role="button"
+      tabIndex={0}
+      aria-label={`Select ${title} category`}
     >
       <div className="mb-4 text-center">
         <img 
@@ -30,6 +34,6 @@ export default function CategoryCard({ title, description, iconPath, onClick, is
       </div>
       <h3 className="text-xl font-semibold text-gray-800 mb-2 text-center">{title}</h3>
       <p className="text-gray-600 text-center text-sm">{description}</p>
-    </div>
+    </button>
   );
 }

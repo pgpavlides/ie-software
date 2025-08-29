@@ -58,10 +58,14 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {cities.map((city) => (
-            <div
+            <button
               key={city.name}
               onClick={() => onSelectCity(city.name)}
-              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200"
+              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-label={`Select ${city.name} city`}
             >
               <div className="text-4xl mb-4 text-center">🏙️</div>
               <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
@@ -70,7 +74,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
               <p className="text-gray-600 text-center text-sm">
                 {city.rooms.length} room{city.rooms.length !== 1 ? 's' : ''}
               </p>
-            </div>
+            </button>
           ))}
         </div>
       </div>

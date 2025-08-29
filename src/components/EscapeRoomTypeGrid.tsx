@@ -38,10 +38,14 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack }: EscapeRoomT
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {escapeRoomTypes.map((type: EscapeRoomType) => (
-            <div
+            <button
               key={type.id}
               onClick={() => onSelectType(type.id)}
-              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200"
+              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-label={`Select ${type.name} escape room type`}
             >
               <div className="text-center">
                 <div className="mb-4">
@@ -58,7 +62,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack }: EscapeRoomT
                   {type.cities.length} cit{type.cities.length !== 1 ? 'ies' : 'y'}
                 </p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

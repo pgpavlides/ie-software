@@ -98,10 +98,14 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {city.rooms.map((room, index) => (
-            <div
+            <button
               key={index}
               onClick={() => onSelectRoom(room.name)}
-              className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-lg hover:border-red-300 transition-all cursor-pointer"
+              className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-lg hover:border-red-300 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-left"
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-label={`Select ${room.name} room`}
             >
               <div className="flex items-start justify-between mb-3">
                 <h3 className="text-lg font-semibold text-gray-800 flex-1">
@@ -159,7 +163,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
                   </div>
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

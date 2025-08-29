@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useDeveloperOptions } from '../contexts/DeveloperOptionsContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
   FiChevronsRight,
@@ -14,7 +13,6 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
   const [open, setOpen] = useState(true);
-  const { isEnabled: isDeveloperOptionsEnabled } = useDeveloperOptions();
   const { currentUser, logout } = useAuth();
 
   const allMenuItems = [
