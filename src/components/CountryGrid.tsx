@@ -1,12 +1,14 @@
-import { getCountries } from '../data/roomData';
+import { getCountriesByType, getEscapeRoomTypeById } from '../data/data';
 
 interface CountryGridProps {
+  escapeRoomTypeId: string;
   onSelectCountry: (country: string) => void;
   onBack: () => void;
 }
 
-export default function CountryGrid({ onSelectCountry, onBack }: CountryGridProps) {
-  const countries = getCountries();
+export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack }: CountryGridProps) {
+  const countries = getCountriesByType(escapeRoomTypeId);
+  const escapeRoomType = getEscapeRoomTypeById(escapeRoomTypeId);
 
   const getCountryFlag = (country: string): string => {
     const flagMap: Record<string, string> = {
@@ -20,7 +22,10 @@ export default function CountryGrid({ onSelectCountry, onBack }: CountryGridProp
       'Luxembourg': '/flags/lu.svg',
       'Switzerland': '/flags/ch.svg',
       'UK': '/flags/gb.svg',
-      'Netherlands': '/flags/nl.svg'
+      'Netherlands': '/flags/nl.svg',
+      'Bulgaria': '/flags/bg.svg',
+      'Kenya': '/flags/ke.svg',
+      'Slovakia': '/flags/sk.svg'
     };
     return flagMap[country] || '/flags/xx.svg';
   };
@@ -34,13 +39,13 @@ export default function CountryGrid({ onSelectCountry, onBack }: CountryGridProp
             className="mb-4 flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
           >
             <span className="mr-2">←</span>
-            Back to Categories
+            Back to Escape Room Types
           </button>
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Room Management - Countries
+            {escapeRoomType?.name} - Countries
           </h1>
           <p className="text-xl text-gray-600">
-            Select a country to view available cities
+            Select a country to view available cities for {escapeRoomType?.name}
           </p>
         </header>
 

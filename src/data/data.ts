@@ -11,7 +11,15 @@ export interface CityData {
   rooms: RoomEntry[];
 }
 
-export const roomData: CityData[] = [
+export interface EscapeRoomType {
+  id: string;
+  name: string;
+  description: string;
+  cities: CityData[];
+}
+
+// Legacy data structure (MindTrap data)
+export const mindTrapData: CityData[] = [
   {
     name: "Inglostand",
     country: "Germany",
@@ -225,7 +233,7 @@ export const roomData: CityData[] = [
   },
   {
     name: "Cosmos",
-    country: "Germany",
+    country: "Greece",
     rooms: [
       { name: "Atlantis", anydesk: "597 079 804", ip: "192.168.0.7" },
       { name: "GM-PC", anydesk: "142 545 035" },
@@ -752,18 +760,450 @@ export const roomData: CityData[] = [
   }
 ];
 
+// Agent Factory data
+export const agentFactoryData: CityData[] = [
+  {
+    name: "Dorsten",
+    country: "Germany",
+    rooms: [
+      { name: "Laserdance", anydesk: "1 399 288 582" },
+      { name: "Grandpiano", anydesk: "1 714 951 450" },
+      { name: "Justdoit", anydesk: "1 846 439 041" },
+      { name: "Alleyoops", anydesk: "1 161 240 952" },
+      { name: "Letterfloor", anydesk: "1 482 424 977" },
+      { name: "Bubblebobble", anydesk: "1 422 852 791" },
+      { name: "Goal", anydesk: "1 691 855 196" },
+      { name: "Climbing", anydesk: "671 089 302" },
+      { name: "Reflections", anydesk: "1 967 833 038" },
+      { name: "Joker", anydesk: "1 716 094 943" },
+      { name: "Rabbithole", anydesk: "1 481 373 278" },
+      { name: "Thefactory", anydesk: "1 230 954 623" },
+      { name: "Thejungler", anydesk: "1 765 873 441" },
+      { name: "Pyramids", anydesk: "1 063 077 393" },
+      { name: "SpinTheWheel", anydesk: "1 404 435 399" },
+      { name: "ColorWalls", anydesk: "1 736 261 926" },
+      { name: "FillTheGap", anydesk: "1 780 179 948" },
+      { name: "TheGulf", anydesk: "1 916 045 821" },
+      { name: "ThePitcher", anydesk: "1 636 278 331" },
+      { name: "Pharaoh", anydesk: "1 348 514 191" },
+      { name: "Registration1", anydesk: "193 534 808" },
+      { name: "Registration2", anydesk: "1 865 524 175" },
+      { name: "Registration3", anydesk: "1 047 006 470" },
+      { name: "Registration4", anydesk: "1 992 651 428" },
+      { name: "Registration5", anydesk: "1 940 622 815" },
+      { name: "Scoreboard3", anydesk: "1 615 744 036" },
+      { name: "Scoreboard2", anydesk: "1 098 170 823" },
+      { name: "Scoreboard1", anydesk: "1 996 263 414" },
+      { name: "Spare1", anydesk: "1 452 842 780" },
+      { name: "Spare2", anydesk: "1 901 148 501" },
+      { name: "Server", anydesk: "1 818 454 208" },
+      { name: "Pharaoh2", anydesk: "1 937 203 575" },
+      { name: "Reception1", anydesk: "1 762 079 059" },
+      { name: "Reception2", anydesk: "1 059 391 566" }
+    ]
+  },
+  {
+    name: "Sofia",
+    country: "Bulgaria",
+    rooms: [
+      { name: "Labyrinth", anydesk: "1 177 723 797" },
+      { name: "Fill The Gap", anydesk: "1 856 596 094" },
+      { name: "Wreck it", anydesk: "1 603 743 392" },
+      { name: "Color Block", anydesk: "1 742 413 254" },
+      { name: "Fun In The Barn", anydesk: "1 223 423 349" },
+      { name: "Laser Dance", anydesk: "871 776 784" },
+      { name: "Find The Evidence", anydesk: "1 538 119 837" },
+      { name: "Minefield", anydesk: "1 818 640 883" },
+      { name: "Climbing/Survivor", anydesk: "1 437 741 933" },
+      { name: "AcroBalance", anydesk: "1 163 968 000" },
+      { name: "Find The Evidence-Third Screen", anydesk: "1 052 940 983", notes: "OLD: 1 774 045 045" },
+      { name: "MineField-Third Screen", anydesk: "199 917 504" },
+      { name: "Score Board-1", anydesk: "1 457 817 225" },
+      { name: "Score Board-2", anydesk: "1 828 663 971" },
+      { name: "Score Board-3", anydesk: "1 237 089 216" },
+      { name: "Score Board-4", anydesk: "1 248 515 703" },
+      { name: "Registration-1", anydesk: "1 281 515 816" },
+      { name: "Registration-2", anydesk: "1 601 862 070" },
+      { name: "Registration-3", anydesk: "1 738 795 833" },
+      { name: "Registration-4", anydesk: "1 647 703 317" },
+      { name: "Registration-5", anydesk: "119 896 618" },
+      { name: "Reception", anydesk: "1 950 562 069" },
+      { name: "Briefing-Screen", anydesk: "143 804 287" },
+      { name: "Price List-Screen", anydesk: "1 292 707 135" },
+      { name: "Server", anydesk: "1 744 092 649" },
+      { name: "Spare-1", anydesk: "775 558 493" },
+      { name: "Spare-2", anydesk: "1 052 940 983" }
+    ]
+  },
+  {
+    name: "Kibu",
+    country: "Germany",
+    rooms: [
+      { name: "Eiffel Tower (Fun in the Barn)", anydesk: "1 545 163 947", notes: "Paris Route: Blue Colour" },
+      { name: "Louvre Museum (Escape Room 1)", anydesk: "1 644 552 111", notes: "Paris Route: Blue Colour" },
+      { name: "Moulin Rouge (Survivor – Climbing)", anydesk: "1 833 443 350", notes: "Paris Route: Blue Colour" },
+      { name: "Champs Élysées (Just Do It & Factory)", anydesk: "1 495 543 412", notes: "Paris Route: Blue Colour" },
+      { name: "Notre Dame (Ninja Parcour 2)", anydesk: "1 843 824 632", notes: "Paris Route: Blue Colour" },
+      { name: "Centre Pompidou (Pitcher/Space Jam)", anydesk: "1 687 314 196", notes: "Paris Route: Blue Colour" },
+      { name: "Arc de Triomphe (Goal)", anydesk: "1 461 303 512", notes: "Paris Route: Blue Colour" },
+      { name: "Grand Palais (Letter Floor)", anydesk: "1 152 318 521", notes: "Paris Route: Blue Colour" },
+      { name: "Sacre-Coeur (Pixer Floor 2)", anydesk: "836 543 669", notes: "Paris Route: Blue Colour" },
+      { name: "Montmartre (Colour Block)", anydesk: "470 452 794", notes: "Paris Route: Blue Colour" },
+      { name: "London Eye (Wreck It)", anydesk: "1 698 887 458", notes: "London Route: Red Colour" },
+      { name: "Secret Six (The Joker)", anydesk: "1 536 229 016", notes: "London Route: Red Colour" },
+      { name: "Notting Hill (Colour Walls/The Maze 2)", anydesk: "1 419 046 433", notes: "London Route: Red Colour" },
+      { name: "Westminster Abbey (Rabbithole)", anydesk: "1 917 512 073", notes: "London Route: Red Colour" },
+      { name: "Tower of London (Reflections)", anydesk: "1 682 537 375", notes: "London Route: Red Colour" },
+      { name: "Piccadilly Circus (Alley Oops!)", anydesk: "1 934 103 138", notes: "London Route: Red Colour" },
+      { name: "Trafalgar Square (Sucker punch K The Jungler K Acrobalance)", anydesk: "1 867 287 480", notes: "London Route: Red Colour" },
+      { name: "Big Ben (Bubble Bobble)", anydesk: "1 219 462 921", notes: "London Route: Red Colour" },
+      { name: "Camden Market (Ninja Parcour 1)", anydesk: "1 274 943 362", notes: "London Route: Red Colour" },
+      { name: "Buckingham Palace (Pixel Game 3)", anydesk: "1 813 505 848", notes: "London Route: Red Colour" },
+      { name: "Elbe (Push the Button)", anydesk: "1 652 681 379", notes: "Hamburg Route: Yellow Colour" },
+      { name: "Hamburger Fischmarkt (Spin the Wheel)", anydesk: "1 189 052 118", notes: "Hamburg Route: Yellow Colour" },
+      { name: "Reeperbahn (Escape Room 2)", anydesk: "419 772 758", notes: "Hamburg Route: Yellow Colour" },
+      { name: "Speicherstadt (Pharaoh's Tomb)", anydesk: "1 015 924 017", notes: "Hamburg Route: Yellow Colour" },
+      { name: "Elbphilharmonie (Pixel Floor 1)", anydesk: "1 899 665 681", notes: "Hamburg Route: Yellow Colour, OLD: 1 804 124 287" },
+      { name: "Final Mystery Room 1", anydesk: "988 134 052", notes: "Ending Route" },
+      { name: "Final Mystery Room 2", anydesk: "1 544 804 054", notes: "Ending Route" },
+      { name: "Champions Room", anydesk: "381 824 108", notes: "Ending Route" },
+      { name: "Champs Élysées (Just Do It & Factory) - Outside", anydesk: "1 773 403 895" },
+      { name: "Piccadilly Circus (Alley Oops!) - Outside", anydesk: "1 483 681 032" },
+      { name: "Buckingham Palace (Pixel Game 3) - Outside", anydesk: "1 845 226 230" },
+      { name: "Piccadilly Circus (Alley Oops!) - Thirdscreen", anydesk: "1 655 593 980" },
+      { name: "Centre Pompidou (Pitcher/Space Jam) - Thirdscreen", anydesk: "1 771 430 636" },
+      { name: "Arc de Triomphe (Goal) - Thirdscreen", anydesk: "1 769 236 754" },
+      { name: "Grand Palais (Letter Floor) - Thirdscreen", anydesk: "1 532 430 678" },
+      { name: "Hamburger Fischmarkt (Spin the Wheel) - Thirdscreen", anydesk: "1 867 591 861" },
+      { name: "Speicherstadt (Pharaoh's Tomb) - Thirdscreen", anydesk: "1 018 016 180" },
+      { name: "Notting Hill (Colour Walls/The Maze 2) - Thirdscreen", anydesk: "1 249 316 138" },
+      { name: "Secret Six (The Joker) - Thirdscreen", anydesk: "1 530 763 274" },
+      { name: "Reception", anydesk: "1 264 013 547" },
+      { name: "Spare", anydesk: "381 824 108" },
+      { name: "Spare 2", anydesk: "988 134 052" },
+      { name: "Spare 3", anydesk: "1 544 804 054" },
+      { name: "KIBU - Server", anydesk: "1 209 212 112" }
+    ]
+  },
+  {
+    name: "Hamm",
+    country: "Germany",
+    rooms: [
+      { name: "Puck Pursuit", anydesk: "1 344 048 211" },
+      { name: "Bucket Trap", anydesk: "1 824 889 302" },
+      { name: "Light Step", anydesk: "1 947 761 857", notes: "OLD: 1 420 855 820" },
+      { name: "Highlight Bars", anydesk: "1 542 598 995" },
+      { name: "Flipper", anydesk: "1 822 895 596" },
+      { name: "Minefield", anydesk: "1 504 387 558" },
+      { name: "Green Or Red Steps", anydesk: "1 825 565 442" },
+      { name: "Mountain", anydesk: "1 843 667 632" },
+      { name: "Find The Evidence", anydesk: "1 133 817 199" },
+      { name: "Sucker Punch", anydesk: "884 069 803" },
+      { name: "Acrobalance (Jungler)", anydesk: "1 211 017 743" },
+      { name: "Wild West Wars", anydesk: "1 327 362 834" },
+      { name: "Electricity Panel", anydesk: "1 084 767 019" },
+      { name: "Push The Button", anydesk: "1 874 245 771" },
+      { name: "Color Block", anydesk: "1 277 920 598" },
+      { name: "Spare-1", anydesk: "1 542 598 995" },
+      { name: "Spare-2", anydesk: "1 822 895 596" },
+      { name: "Spare-3", anydesk: "1 824 889 302" },
+      { name: "Server", anydesk: "1 671 907 089" },
+      { name: "Reception", anydesk: "1 989 749 216" },
+      { name: "ScoreBoard-1", anydesk: "1 353 244 677" },
+      { name: "ScoreBoard-2", anydesk: "1 784 853 203" },
+      { name: "ScoreBoard-3", anydesk: "1 586 056 089" },
+      { name: "ScoreBoard-4", anydesk: "1 899 459 568" },
+      { name: "Unknown-2", anydesk: "338 879 444" },
+      { name: "Unknown-3", anydesk: "1 751 802 973" },
+      { name: "Registration-1", anydesk: "1 989 638 908" },
+      { name: "Registration-2", anydesk: "1 226 101 200" },
+      { name: "Registration-3", anydesk: "1 638 121 215" },
+      { name: "Puck Pursuit - Third Screen", anydesk: "828 824 484" },
+      { name: "Bucket Trap - Third Screen", anydesk: "1 535 628 663" },
+      { name: "Light Step - Third Screen", anydesk: "359 032 625" },
+      { name: "High Light Bars - Third Screen", anydesk: "1 394 304 981" },
+      { name: "Flipper - Third Screen", anydesk: "1 344 927 359" },
+      { name: "MineField - Third Screen", anydesk: "1 517 155 459" },
+      { name: "Find The Evidence - Third Screen", anydesk: "1 736 681 111" },
+      { name: "Electricity Panel-1 (Starting point) - Thirdscreen", anydesk: "1 002 816 281" },
+      { name: "Electricity Panel-2 (Ending point) - Thirdscreen", anydesk: "1 572 330 522" }
+    ]
+  },
+  {
+    name: "Deheen",
+    country: "Germany",
+    rooms: [
+      { name: "GrandPiano", anydesk: "1 930 337 494" },
+      { name: "LaserDance", anydesk: "1 255 412 591" },
+      { name: "Joker", anydesk: "1 370 277 024" },
+      { name: "FindTheEvidence", anydesk: "165 824 600" },
+      { name: "Fun In The Barn", anydesk: "1 386 486 318" },
+      { name: "SpinTheWheel", anydesk: "1 486 242 491" },
+      { name: "AlleyOops", anydesk: "1 017 417 951" },
+      { name: "SuckerPunch", anydesk: "1 777 740 331" },
+      { name: "MissionX", anydesk: "198 035 678" },
+      { name: "Labyrinth", anydesk: "1 652 450 889" },
+      { name: "PharaohTomb", anydesk: "1 445 064 136" },
+      { name: "SeeSaw", anydesk: "1 418 700 083" },
+      { name: "WreckIt", anydesk: "1 173 126 370" },
+      { name: "Pharaoh -Third Screen", anydesk: "1 324 465 474" },
+      { name: "Joker -Third Screen", anydesk: "528 031 666" },
+      { name: "SpinTheWheel -Third Screen", anydesk: "1 674 662 628" },
+      { name: "AlleOops -Third Screen", anydesk: "1 733 496 446" },
+      { name: "FindTheEvidence -Third Screen", anydesk: "230 107 456" },
+      { name: "Score Board-1", anydesk: "1 881 151 272" },
+      { name: "Score Board-2", anydesk: "1 207 056 212" },
+      { name: "Registration-1", anydesk: "1 997 869 718" },
+      { name: "Registration-2", anydesk: "1 559 046 646" },
+      { name: "Registration-3", anydesk: "1 947 977 911" },
+      { name: "Registration-4", anydesk: "790 499 032" },
+      { name: "Server", anydesk: "1 198 993 790" },
+      { name: "Spare-1 - Dell", anydesk: "187 538 444" },
+      { name: "Spare-2 - Dell", anydesk: "198 035 678" },
+      { name: "Spare-3 - Lenovo", anydesk: "1 506 320 392" },
+      { name: "Spare-4 - Lenovo", anydesk: "435 074 575" }
+    ]
+  }
+];
+
+// MindGolf data
+export const mindGolfData: CityData[] = [
+  {
+    name: "Bratislava",
+    country: "Slovakia",
+    rooms: [
+      { name: "Checkmate", anydesk: "1 031 544 097" },
+      { name: "Clown-Strike", anydesk: "1 025 327 470" },
+      { name: "Beer-Pong", anydesk: "1 539 669 396" },
+      { name: "Pac-Man", anydesk: "1 042 281 403" },
+      { name: "Hot-Wheels", anydesk: "1 497 517 803" },
+      { name: "Golfopoly", anydesk: "1 398 031 506" },
+      { name: "Tree-Trunks", anydesk: "366 125 443" },
+      { name: "Putt-of-Thrones", anydesk: "1 900 774 437" },
+      { name: "Pirate-Ship", anydesk: "227 622 881" },
+      { name: "REG1", anydesk: "1 207 255 106" },
+      { name: "REG2", anydesk: "1 371 905 896" },
+      { name: "SCOREBOARD1", anydesk: "1 605 164 572" },
+      { name: "SCOREBOARD2", anydesk: "1 129 643 745" },
+      { name: "Server", anydesk: "1 071 637 305" },
+      { name: "Reception", anydesk: "1 176 033 848" }
+    ]
+  },
+  {
+    name: "Cologne",
+    country: "Germany",
+    rooms: [
+      { name: "Beer Pong", anydesk: "1 991 405 192" },
+      { name: "Texas Holdem", anydesk: "1 909 324 659" },
+      { name: "CheckMate", anydesk: "1 017 473 282" },
+      { name: "Monopoly", anydesk: "1 120 426 678" },
+      { name: "Hot Wheels", anydesk: "806 017 474" },
+      { name: "Pacman", anydesk: "1 433 231 616" },
+      { name: "Pirate Ship", anydesk: "1 078 417 026" },
+      { name: "Putt of Throne", anydesk: "664 165 455" },
+      { name: "The Three Trunks", anydesk: "1 789 576 507", notes: "(1 276 374 493)" },
+      { name: "Bongo Drums", anydesk: "1 144 039 673" },
+      { name: "Tic Tac Toe", anydesk: "1 467 193 492" },
+      { name: "Tee Jump", anydesk: "1 319 391 739", notes: "No Updated controller.py - stuck on Getting Windows Ready 24/4/2025" },
+      { name: "Ace Pinball", anydesk: "1 750 053 628" },
+      { name: "Duck Hunt", anydesk: "1 847 437 539" },
+      { name: "The Roulette", anydesk: "1 809 398 929" },
+      { name: "Billiard Putt", anydesk: "1 273 379 645", notes: "No Updated controller.py - stuck on Getting Windows Ready 24/4/2025" },
+      { name: "Server", anydesk: "1 417 349 321" },
+      { name: "Reception", anydesk: "1 807 537 560" },
+      { name: "Registration-1", anydesk: "1 122 994 586" },
+      { name: "Registration-2", anydesk: "1 162 413 308" },
+      { name: "Scoreboard-1", anydesk: "1 853 853 812" },
+      { name: "Scoreboard-2", anydesk: "1 274 870 676" },
+      { name: "Spare", anydesk: "664 165 455" }
+    ]
+  },
+  {
+    name: "Kenya",
+    country: "Kenya",
+    rooms: [
+      { name: "MG PUTT OF THRONES", anydesk: "352 436 003", ip: "192.168.1.70" },
+      { name: "MG THE TREE TRUNKS", anydesk: "744 542 946", ip: "192.168.1.71" },
+      { name: "MG BEER PONG", anydesk: "1 141 309 078", ip: "192.168.1.72" },
+      { name: "MG TIC TAC TOE", anydesk: "1 096 785 121", ip: "192.168.1.73" },
+      { name: "MG BONGO DRUMS", anydesk: "143 648 776", ip: "192.168.1.74" },
+      { name: "MG LUCKY STRIKE (CLOWN)", anydesk: "882 214 236", ip: "192.168.1.75" },
+      { name: "MG PIRATE SHIP", anydesk: "564 980 609", ip: "192.168.1.76" },
+      { name: "MG MONOPOLY", anydesk: "881 648 455", ip: "192.168.1.77" },
+      { name: "MG BILLIARD PUTT", anydesk: "735 302 050", ip: "192.168.1.78" },
+      { name: "MG DUCK HUNT", anydesk: "136 386 662", ip: "192.168.1.79" },
+      { name: "MG PACMAN", anydesk: "607 559 838", ip: "192.168.1.80" },
+      { name: "MG CHECKMATE", anydesk: "883 895 223", ip: "192.168.1.81" },
+      { name: "Registration-1", anydesk: "436 437 060" },
+      { name: "Registration-2", anydesk: "912 582 730" },
+      { name: "Registration-3", anydesk: "433 216 466" },
+      { name: "Scoreboard-1", anydesk: "907 627 743" },
+      { name: "Scoreboard-2", anydesk: "302 003 947" },
+      { name: "Server", anydesk: "433 794 300", notes: "MGServer.local" },
+      { name: "SPARE-PC", anydesk: "808 497 648" },
+      { name: "RECEPTION-PC", anydesk: "969 199 291" }
+    ]
+  },
+  {
+    name: "Lucerne",
+    country: "Switzerland",
+    rooms: [
+      { name: "Clown Strike", anydesk: "1 011 696 291" },
+      { name: "Duck Hunt", anydesk: "1 393 128 064" },
+      { name: "Pirate Ship", anydesk: "1 333 269 268" },
+      { name: "Texas Holdem", anydesk: "1 849 471 311" },
+      { name: "Hot Wheels", anydesk: "812 408 659" },
+      { name: "Pacman", anydesk: "1 225 246 135" },
+      { name: "CheckMate", anydesk: "1 199 889 077" },
+      { name: "The Loop", anydesk: "1 254 930 647" },
+      { name: "Bongo Drums", anydesk: "1 434 765 465" },
+      { name: "Registration 1", anydesk: "1 418 839 154" },
+      { name: "Registration 2", anydesk: "1 282 774 330" },
+      { name: "ScoreBoard", anydesk: "1 874 113 628" },
+      { name: "Reception", anydesk: "1 394 800 894" },
+      { name: "MG-Server", anydesk: "1 088 270 250" },
+      { name: "MG-Spare", anydesk: "1 849 254 483" }
+    ]
+  },
+  {
+    name: "Manheim",
+    country: "Germany",
+    rooms: [
+      { name: "Clown", anydesk: "105 362 489", ip: "192.168.178.202" },
+      { name: "Pirate", anydesk: "855 217 372", ip: "192.168.178.203" },
+      { name: "Checkmate", anydesk: "110 330 911", ip: "192.168.178.204" },
+      { name: "Teejump", anydesk: "270 554 662", ip: "192.168.178.205" },
+      { name: "Putt Of Thrones", anydesk: "416 803 567", ip: "192.168.178.206" },
+      { name: "Hot Wheels", anydesk: "413 008 115", ip: "192.168.178.207" },
+      { name: "Duck Hunt", anydesk: "491 219 714", ip: "192.168.178.208" },
+      { name: "The Roulette", anydesk: "199 326 195", ip: "192.168.178.209" },
+      { name: "The Tree Trunks", anydesk: "901 231 066", ip: "192.168.178.210" },
+      { name: "Ace Pinball", anydesk: "419 502 319", ip: "192.168.178.211" },
+      { name: "Tic Tac Toe", anydesk: "836 380 335", ip: "192.168.178.212" },
+      { name: "Beer Pong", anydesk: "240 072 121", ip: "192.168.178.213" },
+      { name: "Billiard Putt", anydesk: "734 971 168", ip: "192.168.178.214" },
+      { name: "Pac Man", anydesk: "330 127 073", ip: "192.168.178.215" },
+      { name: "Monopoly", anydesk: "518 612 814", ip: "192.168.178.216" },
+      { name: "Texas Holdem", anydesk: "163 636 280", ip: "192.168.178.218" },
+      { name: "Crazy Land", anydesk: "311 028 898", ip: "192.168.178.219" },
+      { name: "Registration1", anydesk: "1 448 362 651", ip: "192.168.178.220" },
+      { name: "Registration2", anydesk: "631 209 473", ip: "192.168.178.221" },
+      { name: "Registration3", anydesk: "835 333 191", notes: "DHCP - WiFi" },
+      { name: "Registration4", anydesk: "1 435 358 756", ip: "192.168.178.223" },
+      { name: "Registration5", anydesk: "451 048 050" },
+      { name: "Server", anydesk: "744 631 434", ip: "192.168.178.201", notes: "shell:startup" },
+      { name: "Γραμματεία", anydesk: "539 693 878" },
+      { name: "Scoreboard-1", anydesk: "109 678 888", ip: "192.168.178.224" },
+      { name: "Scoreboard-2", anydesk: "687 729 611" },
+      { name: "Scoreboard-3", anydesk: "481 240 442" },
+      { name: "Desktop-Denis", anydesk: "958 923 503" }
+    ]
+  },
+  {
+    name: "Rodgau",
+    country: "Germany",
+    rooms: [
+      { name: "MG PIRATES", anydesk: "551 942 340" },
+      { name: "MG PINBALL", anydesk: "381 394 280", notes: "Addr-2 Manual || Props" },
+      { name: "MG HOT WHEELS", anydesk: "656 585 914" },
+      { name: "MG CHESS", anydesk: "565 497 609" },
+      { name: "MG CRAZY LOOP", anydesk: "1 661 441 224", notes: "WiFi" },
+      { name: "MG PUTT OF THRONES", anydesk: "375 159 907" },
+      { name: "MG TEE JUMP", anydesk: "161 559 632" },
+      { name: "MG DUCK HUNT", anydesk: "462 612 793" },
+      { name: "MG PAC MAN", anydesk: "450 364 533" },
+      { name: "MG THE ROULETTE", anydesk: "844 138 060" },
+      { name: "MG TEXAS HOLDEM", anydesk: "435 254 180" },
+      { name: "MG TREE TRUNKS", anydesk: "414 795 374" },
+      { name: "MG CRAZY LAND", anydesk: "428 228 071" },
+      { name: "MG CLOWN", anydesk: "759 590 278" },
+      { name: "MG BONGO DRUMS", anydesk: "458 582 135", notes: "Props" },
+      { name: "MG BEER PONG", anydesk: "586 568 434", notes: "Props" },
+      { name: "MG TIC TAC TOE", anydesk: "227 599 485" },
+      { name: "MG BILLIARD", anydesk: "118 963 925" },
+      { name: "MG MONOPOLY", anydesk: "897 898 694" },
+      { name: "Registration1", anydesk: "868 406 533" },
+      { name: "Registration2", anydesk: "505 043 354" },
+      { name: "Registration3", anydesk: "938 841 361", notes: "Addr-3 Manual" },
+      { name: "Registration4", anydesk: "221 195 146" },
+      { name: "Server", anydesk: "662 648 424", notes: "MGServer.local" },
+      { name: "Receptionist", anydesk: "740 570 405" },
+      { name: "Scoreboard-1", anydesk: "682 798 881" },
+      { name: "Scoreboard-2", anydesk: "923 651 669" },
+      { name: "Scoreboard-3", anydesk: "1 658 437 924" }
+    ]
+  }
+];
+
+// New structured escape room data
+export const escapeRoomTypes: EscapeRoomType[] = [
+  {
+    id: 'mindtrap',
+    name: 'MindTrap',
+    description: 'Classic escape room experiences with puzzles and challenges',
+    cities: mindTrapData
+  },
+  {
+    id: 'agent-factory',
+    name: 'Agent Factory',
+    description: 'Agent-based escape room experiences with interactive challenges',
+    cities: agentFactoryData
+  },
+  {
+    id: 'mindgolf',
+    name: 'MindGolf',
+    description: 'Golf-themed escape room experiences',
+    cities: mindGolfData
+  }
+];
+
+// Legacy export for backward compatibility
+export const roomData = mindTrapData;
+
+// Helper function to get all escape room types
+export const getEscapeRoomTypes = (): EscapeRoomType[] => {
+  return escapeRoomTypes;
+};
+
+// Helper function to get escape room type by id
+export const getEscapeRoomTypeById = (id: string): EscapeRoomType | undefined => {
+  return escapeRoomTypes.find(type => type.id === id);
+};
+
 // Helper function to get unique countries
 export const getCountries = (): string[] => {
-  const countries = [...new Set(roomData.map(city => city.country))];
+  const countries = [...new Set(mindTrapData.map(city => city.country))];
+  return countries.sort();
+};
+
+// Helper function to get countries by escape room type
+export const getCountriesByType = (typeId: string): string[] => {
+  const escapeRoomType = getEscapeRoomTypeById(typeId);
+  if (!escapeRoomType) return [];
+  const countries = [...new Set(escapeRoomType.cities.map(city => city.country))];
   return countries.sort();
 };
 
 // Helper function to get cities by country
 export const getCitiesByCountry = (country: string): CityData[] => {
-  return roomData.filter(city => city.country === country).sort((a, b) => a.name.localeCompare(b.name));
+  return mindTrapData.filter(city => city.country === country).sort((a, b) => a.name.localeCompare(b.name));
+};
+
+// Helper function to get cities by country and type
+export const getCitiesByCountryAndType = (country: string, typeId: string): CityData[] => {
+  const escapeRoomType = getEscapeRoomTypeById(typeId);
+  if (!escapeRoomType) return [];
+  return escapeRoomType.cities.filter(city => city.country === country).sort((a, b) => a.name.localeCompare(b.name));
 };
 
 // Helper function to get city data by name
 export const getCityByName = (cityName: string): CityData | undefined => {
-  return roomData.find(city => city.name === cityName);
+  return mindTrapData.find(city => city.name === cityName);
+};
+
+// Helper function to get city data by name and type
+export const getCityByNameAndType = (cityName: string, typeId: string): CityData | undefined => {
+  const escapeRoomType = getEscapeRoomTypeById(typeId);
+  if (!escapeRoomType) return undefined;
+  return escapeRoomType.cities.find(city => city.name === cityName);
 };

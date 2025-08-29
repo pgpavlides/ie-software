@@ -1,13 +1,14 @@
-import { getCitiesByCountry } from '../data/roomData';
+import { getCitiesByCountryAndType } from '../data/data';
 
 interface CityGridProps {
   country: string;
+  escapeRoomTypeId: string;
   onSelectCity: (cityName: string) => void;
   onBack: () => void;
 }
 
-export default function CityGrid({ country, onSelectCity, onBack }: CityGridProps) {
-  const cities = getCitiesByCountry(country);
+export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBack }: CityGridProps) {
+  const cities = getCitiesByCountryAndType(country, escapeRoomTypeId);
 
   const getCountryFlag = (country: string): string => {
     const flagMap: Record<string, string> = {
@@ -21,7 +22,10 @@ export default function CityGrid({ country, onSelectCity, onBack }: CityGridProp
       'Luxembourg': '/flags/lu.svg',
       'Switzerland': '/flags/ch.svg',
       'UK': '/flags/gb.svg',
-      'Netherlands': '/flags/nl.svg'
+      'Netherlands': '/flags/nl.svg',
+      'Bulgaria': '/flags/bg.svg',
+      'Kenya': '/flags/ke.svg',
+      'Slovakia': '/flags/sk.svg'
     };
     return flagMap[country] || '/flags/xx.svg';
   };

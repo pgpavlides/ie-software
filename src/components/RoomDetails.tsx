@@ -1,13 +1,14 @@
-import { getCityByName } from '../data/roomData';
+import { getCityByNameAndType } from '../data/data';
 
 interface RoomDetailsProps {
   cityName: string;
+  escapeRoomTypeId: string;
   onBack: () => void;
   onSelectRoom: (roomName: string) => void;
 }
 
-export default function RoomDetails({ cityName, onBack, onSelectRoom }: RoomDetailsProps) {
-  const city = getCityByName(cityName);
+export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSelectRoom }: RoomDetailsProps) {
+  const city = getCityByNameAndType(cityName, escapeRoomTypeId);
   
   if (!city) {
     return (
@@ -31,7 +32,10 @@ export default function RoomDetails({ cityName, onBack, onSelectRoom }: RoomDeta
       'Luxembourg': '/flags/lu.svg',
       'Switzerland': '/flags/ch.svg',
       'UK': '/flags/gb.svg',
-      'Netherlands': '/flags/nl.svg'
+      'Netherlands': '/flags/nl.svg',
+      'Bulgaria': '/flags/bg.svg',
+      'Kenya': '/flags/ke.svg',
+      'Slovakia': '/flags/sk.svg'
     };
     return flagMap[country] || '/flags/xx.svg';
   };

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Layout from './components/Layout'
 import HomePage from './components/HomePage'
+import EscapeRoomTypeGrid from './components/EscapeRoomTypeGrid'
 import CountryGrid from './components/CountryGrid'
 import CityGrid from './components/CityGrid'
 import RoomDetails from './components/RoomDetails'
@@ -14,12 +15,13 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/LoginPage'
 
-type ViewType = 'home' | 'countries' | 'cities' | 'rooms' | 'room-info';
+type ViewType = 'home' | 'escape-room-types' | 'countries' | 'cities' | 'rooms' | 'room-info';
 type CategoryType = 'dashboard' | 'room' | 'technical' | 'monitoring' | 'security' | 'reports' | 'utilities';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<ViewType>('home')
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('dashboard')
+  const [selectedEscapeRoomType, setSelectedEscapeRoomType] = useState<string>('')
   const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [selectedCity, setSelectedCity] = useState<string>('')
   const [selectedRoom, setSelectedRoom] = useState<string>('')
@@ -29,15 +31,17 @@ function AppContent() {
     if (category === 'dashboard') {
       setCurrentView('home')
       // Reset navigation state when going back to dashboard
+      setSelectedEscapeRoomType('')
       setSelectedCountry('')
       setSelectedCity('')
     } else if (category === 'room') {
       if (currentView === 'home') {
-        setCurrentView('countries')
+        setCurrentView('escape-room-types')
       }
     } else {
       // Navigate to other category pages
       setCurrentView('home')
+      setSelectedEscapeRoomType('')
       setSelectedCountry('')
       setSelectedCity('')
     }
@@ -46,11 +50,16 @@ function AppContent() {
   const handleSelectCategory = (category: string) => {
     setSelectedCategory(category as CategoryType)
     if (category === 'room') {
-      setCurrentView('countries')
+      setCurrentView('escape-room-types')
     } else {
       // No need to show alert, just stay on current view
       // The sidebar navigation will handle the page switching
     }
+  }
+
+  const handleSelectEscapeRoomType = (typeId: string) => {
+    setSelectedEscapeRoomType(typeId)
+    setCurrentView('countries')
   }
 
   const handleSelectCountry = (country: string) => {
@@ -71,6 +80,14 @@ function AppContent() {
   const handleBackToHome = () => {
     setCurrentView('home')
     setSelectedCategory('dashboard')
+    setSelectedEscapeRoomType('')
+    setSelectedCountry('')
+    setSelectedCity('')
+  }
+
+  const handleBackToEscapeRoomTypes = () => {
+    setCurrentView('escape-room-types')
+    setSelectedEscapeRoomType('')
     setSelectedCountry('')
     setSelectedCity('')
   }
@@ -106,16 +123,25 @@ function AppContent() {
             <HomePage onSelectCategory={handleSelectCategory} />
           )}
           
+          {currentView === 'escape-room-types' && (
+            <EscapeRoomTypeGrid 
+              onSelectType={handleSelectEscapeRoomType} 
+              onBack={handleBackToHome}
+            />
+          )}
+          
           {currentView === 'countries' && (
             <CountryGrid 
+              escapeRoomTypeId={selectedEscapeRoomType}
               onSelectCountry={handleSelectCountry} 
-              onBack={handleBackToHome}
+              onBack={handleBackToEscapeRoomTypes}
             />
           )}
           
           {currentView === 'cities' && (
             <CityGrid 
               country={selectedCountry}
+              escapeRoomTypeId={selectedEscapeRoomType}
               onSelectCity={handleSelectCity} 
               onBack={handleBackToCountries}
             />
@@ -124,6 +150,7 @@ function AppContent() {
           {currentView === 'rooms' && (
             <RoomDetails 
               cityName={selectedCity}
+              escapeRoomTypeId={selectedEscapeRoomType}
               onBack={handleBackToCities}
               onSelectRoom={handleSelectRoom}
             />
@@ -132,6 +159,7 @@ function AppContent() {
           {currentView === 'room-info' && (
             <RoomInfo 
               cityName={selectedCity}
+              escapeRoomTypeId={selectedEscapeRoomType}
               roomName={selectedRoom}
               onBack={handleBackToRooms}
             />
