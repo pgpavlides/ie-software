@@ -10,37 +10,19 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       id: 'room',
       title: 'Room',
       description: 'Access room management and AnyDesk connections',
-      iconPath: '/icons/REGISTER PLAYER.svg'
+      iconPath: '/icons/RANDOM_GENERATE.svg'
     },
     {
-      id: 'technical',
-      title: 'Technical',
-      description: 'Technical support and system diagnostics',
-      iconPath: '/icons/DEV TOOLS.svg'
-    },
-    {
-      id: 'monitoring',
-      title: 'Monitoring',
-      description: 'System monitoring and performance tracking',
-      iconPath: '/icons/LIVE VIEW.svg'
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      description: 'Security management and access control',
-      iconPath: '/icons/ADMINISTRATOR.svg'
-    },
-    {
-      id: 'reports',
-      title: 'Reports',
-      description: 'Generate and view system reports',
-      iconPath: '/icons/SCOREBOARD.svg'
+      id: 'guides',
+      title: 'Guides',
+      description: 'Documentation and user guides',
+      iconPath: '/icons/BOX.svg'
     },
     {
       id: 'utilities',
       title: 'Utilities',
       description: 'Various system utilities and tools',
-      iconPath: '/icons/SETTINGS.svg'
+      iconPath: '/icons/DEV_TOOLS.svg'
     }
   ];
 

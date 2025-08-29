@@ -6,9 +6,6 @@ import CountryGrid from './components/CountryGrid'
 import CityGrid from './components/CityGrid'
 import RoomDetails from './components/RoomDetails'
 import RoomInfo from './components/RoomInfo'
-import MonitoringPage from './components/MonitoringPage'
-import SecurityPage from './components/SecurityPage'
-import ReportsPage from './components/ReportsPage'
 import UtilitiesPage from './components/UtilitiesPage'
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext'
 import { ThemeProvider } from './contexts/ThemeContext'
@@ -16,7 +13,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/LoginPage'
 
 type ViewType = 'home' | 'escape-room-types' | 'countries' | 'cities' | 'rooms' | 'room-info';
-type CategoryType = 'dashboard' | 'room' | 'technical' | 'monitoring' | 'security' | 'reports' | 'utilities';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<ViewType>('home')
@@ -166,16 +163,11 @@ function AppContent() {
           )}
           
           {/* Other category pages */}
-          {selectedCategory === 'monitoring' && (
-            <MonitoringPage />
-          )}
-          
-          {selectedCategory === 'security' && (
-            <SecurityPage />
-          )}
-          
-          {selectedCategory === 'reports' && (
-            <ReportsPage />
+          {selectedCategory === 'guides' && (
+            <div className="p-8">
+              <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
+              <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
+            </div>
           )}
           
           {selectedCategory === 'utilities' && (

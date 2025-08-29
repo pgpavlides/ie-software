@@ -27,48 +27,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
     { 
       name: 'Room', 
       view: 'room',
-      iconPath: '/icons/REGISTER PLAYER.svg',
+      iconPath: '/icons/RANDOM_GENERATE.svg',
       emoji: '🏠'
     },
     { 
-      name: 'Technical', 
-      view: 'technical',
-      iconPath: '/icons/DEV TOOLS.svg',
-      emoji: '⚙️'
-    },
-    { 
-      name: 'Monitoring', 
-      view: 'monitoring',
-      iconPath: '/icons/LIVE VIEW.svg',
-      emoji: '📊'
-    },
-    { 
-      name: 'Security', 
-      view: 'security',
-      iconPath: '/icons/ADMINISTRATOR.svg',
-      emoji: '🔐'
-    },
-    { 
-      name: 'Reports', 
-      view: 'reports',
-      iconPath: '/icons/SCOREBOARD.svg',
-      emoji: '📄'
+      name: 'Guides', 
+      view: 'guides',
+      iconPath: '/icons/BOX.svg',
+      emoji: '📚'
     },
     { 
       name: 'Utilities', 
       view: 'utilities',
-      iconPath: '/icons/SETTINGS.svg',
+      iconPath: '/icons/DEV_TOOLS.svg',
       emoji: '🛠️'
     }
   ];
 
-  // Filter menu items based on developer options setting
-  const menuItems = allMenuItems.filter(item => {
-    if (item.name === 'Technical') {
-      return isDeveloperOptionsEnabled;
-    }
-    return true;
-  });
+  // No filtering needed anymore - show all menu items
+  const menuItems = allMenuItems;
 
   return (
     <motion.nav
