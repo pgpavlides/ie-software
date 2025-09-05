@@ -7,12 +7,14 @@ import CityGrid from './components/CityGrid'
 import RoomDetails from './components/RoomDetails'
 import RoomInfo from './components/RoomInfo'
 import UtilitiesPage from './components/UtilitiesPage'
+import OvertimesPage from './components/OvertimesPage'
+import ComponentsPage from './components/ComponentsPage'
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/LoginPage'
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components';
 
 // Router-aware components
 function AppContent() {
@@ -29,6 +31,8 @@ function AppContent() {
     if (location.pathname.startsWith('/room')) return 'room';
     if (location.pathname.startsWith('/guides')) return 'guides';
     if (location.pathname.startsWith('/utilities')) return 'utilities';
+    if (location.pathname.startsWith('/overtimes')) return 'overtimes';
+    if (location.pathname.startsWith('/components')) return 'components';
     return 'dashboard';
   };
 
@@ -46,6 +50,12 @@ function AppContent() {
       case 'utilities':
         navigate('/utilities');
         break;
+      case 'overtimes':
+        navigate('/overtimes');
+        break;
+      case 'components':
+        navigate('/components');
+        break;
     }
   };
 
@@ -62,7 +72,11 @@ function AppContent() {
             <Route path="/" element={<HomePage onSelectCategory={handleSelectCategory} />} />
             
             {/* Room Flow */}
-            <Route path="/room" element={<EscapeRoomTypeGrid onSelectType={(typeId) => navigate(`/room/${typeId}`)} onBack={() => navigate('/')} />} />
+            <Route path="/room" element={<EscapeRoomTypeGrid 
+              onSelectType={(typeId) => navigate(`/room/${typeId}`)} 
+              onBack={() => navigate('/')} 
+              onSelectRoom={(typeId, cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}`)} 
+            />} />
             <Route path="/room/:typeId" element={<CountryGridWrapper />} />
             <Route path="/room/:typeId/:country" element={<CityGridWrapper />} />
             <Route path="/room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
@@ -76,6 +90,8 @@ function AppContent() {
               </div>
             } />
             <Route path="/utilities" element={<UtilitiesPage />} />
+            <Route path="/overtimes" element={<OvertimesPage />} />
+            <Route path="/components" element={<ComponentsPage />} />
           </Routes>
         </Layout>
       </DeveloperOptionsProvider>
@@ -93,6 +109,7 @@ function CountryGridWrapper() {
       escapeRoomTypeId={typeId!}
       onSelectCountry={(country) => navigate(`/room/${typeId}/${encodeURIComponent(country)}`)} 
       onBack={() => navigate('/room')}
+      onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}`)}
     />
   );
 }
@@ -107,6 +124,7 @@ function CityGridWrapper() {
       escapeRoomTypeId={typeId!}
       onSelectCity={(city) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(city)}`)} 
       onBack={() => navigate(`/room/${typeId}`)}
+      onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}`)}
     />
   );
 }

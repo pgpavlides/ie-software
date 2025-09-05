@@ -39,6 +39,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
       view: 'utilities',
       iconPath: '/icons/DEV_TOOLS.svg',
       emoji: '🛠️'
+    },
+    { 
+      name: 'Overtimes', 
+      view: 'overtimes',
+      iconPath: '/icons/HUMAN.svg',
+      emoji: '⏰'
+    },
+    { 
+      name: 'Components', 
+      view: 'components',
+      iconPath: '/icons/BOX.svg',
+      emoji: '🧩'
     }
   ];
 

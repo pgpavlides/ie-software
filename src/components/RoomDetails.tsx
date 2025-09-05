@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { getCityByNameAndType } from '../data/data';
 
 interface RoomDetailsProps {
@@ -8,7 +9,57 @@ interface RoomDetailsProps {
 }
 
 export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSelectRoom }: RoomDetailsProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const roomGridRef = useRef<HTMLDivElement>(null);
   const city = getCityByNameAndType(cityName, escapeRoomTypeId);
+  
+  // Auto-focus search input when component mounts
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, []);
+  
+  // Reset selected index when search query changes
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [searchQuery]);
+  
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && roomGridRef.current) {
+      const selectedElement = roomGridRef.current.children[selectedIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }
+    }
+  }, [selectedIndex]);
+  
+  const filteredRooms = useMemo(() => {
+    if (!city || !searchQuery.trim()) {
+      return city?.rooms || [];
+    }
+    
+    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+    
+    return city.rooms.filter(room => {
+      // Create a searchable string containing all room data
+      const searchableText = [
+        room.name,
+        room.anydesk,
+        room.ip || '',
+        room.notes || ''
+      ].join(' ').toLowerCase();
+      
+      // Check if ALL search words are found somewhere in the searchable text
+      return searchWords.every(word => searchableText.includes(word));
+    });
+  }, [city, searchQuery]);
   
   if (!city) {
     return (
@@ -92,16 +143,56 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
             </div>
           </div>
           <p className="text-lg text-gray-600">
-            {city.rooms.length} room{city.rooms.length !== 1 ? 's' : ''} available
+            {searchQuery ? `${filteredRooms.length} of ${city.rooms.length}` : city.rooms.length} room{(searchQuery ? filteredRooms.length : city.rooms.length) !== 1 ? 's' : ''} {searchQuery ? 'found' : 'available'}
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {city.rooms.map((room, index) => (
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <input
+              type="text"
+              placeholder="Search rooms, AnyDesk ID, IP, or notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            />
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-3"
+              >
+                <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {filteredRooms.length === 0 && searchQuery ? (
+          <div className="text-center py-12">
+            <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p className="text-gray-500 text-lg">No rooms found matching "{searchQuery}"</p>
+            <p className="text-gray-400 text-sm mt-2">Try adjusting your search terms</p>
+          </div>
+        ) : (
+          <div ref={roomGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredRooms.map((room, index) => (
             <button
               key={index}
               onClick={() => onSelectRoom(room.name)}
-              className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-lg hover:border-red-300 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-left"
+              className={`p-4 rounded-lg border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-left ${
+                selectedIndex === index 
+                  ? 'bg-red-50 border-red-500 shadow-lg' 
+                  : 'bg-white border-gray-200 hover:shadow-lg hover:border-red-300'
+              }`}
               type="button"
               role="button"
               tabIndex={0}
@@ -165,7 +256,8 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
               </div>
             </button>
           ))}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
