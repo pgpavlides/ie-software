@@ -86,10 +86,10 @@ export const mindTrapData: CityData[] = [
       { name: "Silent", anydesk: "542 418 617", ip: "192.168.0.2" },
       { name: "Silent (Alt)", anydesk: "400 783 230" },
       { name: "Evil", anydesk: "700 681 425", ip: "192.168.0.1" },
-      { name: "Prison", anydesk: "818 107 939", notes: "Pass:@intelligent@" },
+      { name: "Prison", anydesk: "818 107 939", },
       { name: "Hostel", anydesk: "1 180 625 962" },
       { name: "Davinci", anydesk: "933 558 996" },
-      { name: "Aladdin", anydesk: "868 452 117", notes: "Pass:mindtr@p" },
+      { name: "Aladdin", anydesk: "868 452 117", },
       { name: "Hostel VIDEO", anydesk: "847 240 825", ip: "192.168.10.100" },
       { name: "Hostel Music", anydesk: "745 304 507", ip: "192.168.10.108" }
     ]
