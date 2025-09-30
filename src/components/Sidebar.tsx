@@ -3,15 +3,17 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   FiChevronsRight,
   FiLogOut,
+  FiTerminal,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 
 interface SidebarProps {
   currentView: string;
   onNavigate: (view: string) => void;
+  onToggleCommandLine: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
   const [open, setOpen] = useState(true);
   const { currentUser, logout } = useAuth();
 
@@ -54,7 +56,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
     }
   ];
 
-  // No filtering needed anymore - show all menu items
   const menuItems = allMenuItems;
 
   return (
@@ -67,7 +68,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
         borderColor: '#444'
       }}
     >
-      {/* Logo Section */}
       <div className="p-4 border-b" style={{ borderColor: '#444' }}>
         {open ? (
           <img 
@@ -101,6 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
         ))}
       </div>
 
+      <CommandLineButton open={open} onToggle={onToggleCommandLine} />
       <UserInfo open={open} user={currentUser} />
       <LogoutButton open={open} onLogout={logout} />
       <ToggleClose open={open} setOpen={setOpen} />
@@ -122,16 +123,14 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
   const isActive = selected === view;
   const [isHovered, setIsHovered] = React.useState(false);
   
-  // Calculate filter based on theme and state
   const getIconFilter = () => {
     if (isActive) {
-      return 'brightness(0) invert(1)'; // Always white when active
+      return 'brightness(0) invert(1)';
     }
     if (isHovered) {
-      return 'brightness(0) invert(1)'; // Always white when hovered
+      return 'brightness(0) invert(1)';
     }
-    // Default state - red color to match brand
-    return 'brightness(0) saturate(100%) invert(19%) sepia(84%) saturate(3951%) hue-rotate(346deg) brightness(91%) contrast(103%)'; // Red (#ea2127)
+    return 'brightness(0) saturate(100%) invert(19%) sepia(84%) saturate(3951%) hue-rotate(346deg) brightness(91%) contrast(103%)';
   };
   
   return (
@@ -170,7 +169,6 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
             filter: getIconFilter()
           }}
           onError={(e) => {
-            // Fallback to emoji if icon fails to load
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
             const parent = target.parentElement;
@@ -191,6 +189,48 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
           {title}
         </motion.span>
       )}
+    </motion.button>
+  );
+};
+
+const CommandLineButton: React.FC<{ open: boolean; onToggle: () => void }> = ({ open, onToggle }) => {
+  return (
+    <motion.button
+      layout
+      onClick={onToggle}
+      className="border-t transition-colors mt-2"
+      style={{
+        borderColor: '#444',
+        backgroundColor: 'transparent'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'rgba(234, 33, 39, 0.2)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
+    >
+      <div className="flex items-center p-2">
+        <motion.div
+          layout
+          className="grid size-10 place-content-center text-lg"
+          style={{color: '#999999'}}
+        >
+          <FiTerminal />
+        </motion.div>
+        {open && (
+          <motion.span
+            layout
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.125 }}
+            className="text-xs font-medium"
+            style={{color: '#999999'}}
+          >
+            Command
+          </motion.span>
+        )}
+      </div>
     </motion.button>
   );
 };
