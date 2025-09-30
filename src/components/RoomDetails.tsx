@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { getCityByNameAndType } from '../data/data';
+import { useSearchParams } from 'react-router-dom';
 
 interface RoomDetailsProps {
   cityName: string;
@@ -9,25 +10,23 @@ interface RoomDetailsProps {
 }
 
 export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSelectRoom }: RoomDetailsProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get('q') || '';
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const roomGridRef = useRef<HTMLDivElement>(null);
   const city = getCityByNameAndType(cityName, escapeRoomTypeId);
-  
-  // Auto-focus search input when component mounts
+
   useEffect(() => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, []);
-  
-  // Reset selected index when search query changes
+
   useEffect(() => {
     setSelectedIndex(-1);
   }, [searchQuery]);
-  
-  // Scroll selected item into view
+
   useEffect(() => {
     if (selectedIndex >= 0 && roomGridRef.current) {
       const selectedElement = roomGridRef.current.children[selectedIndex] as HTMLElement;
@@ -39,28 +38,26 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
       }
     }
   }, [selectedIndex]);
-  
+
   const filteredRooms = useMemo(() => {
     if (!city || !searchQuery.trim()) {
       return city?.rooms || [];
     }
-    
+
     const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
-    
+
     return city.rooms.filter(room => {
-      // Create a searchable string containing all room data
       const searchableText = [
         room.name,
         room.anydesk,
         room.ip || '',
         room.notes || ''
       ].join(' ').toLowerCase();
-      
-      // Check if ALL search words are found somewhere in the searchable text
+
       return searchWords.every(word => searchableText.includes(word));
     });
   }, [city, searchQuery]);
-  
+
   if (!city) {
     return (
       <div className="min-h-full p-8">
@@ -74,7 +71,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
   const getCountryFlag = (country: string): string => {
     const flagMap: Record<string, string> = {
       'Germany': '/flags/de.svg',
-      'Greece': '/flags/gr.svg', 
+      'Greece': '/flags/gr.svg',
       'USA': '/flags/us.svg',
       'Canada': '/flags/ca.svg',
       'Australia': '/flags/au.svg',
@@ -97,19 +94,11 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
 
   const connectAnyDesk = async (anydeskId: string) => {
     try {
-      // Remove spaces from AnyDesk ID for the protocol
       const cleanId = anydeskId.replace(/\s+/g, '');
-      
-      // First copy the original ID to clipboard (with spaces for readability)
       await navigator.clipboard.writeText(anydeskId);
-      
-      // Use the clean ID for the protocol URL
       const anydeskUrl = `anydesk:${cleanId}`;
-      
-      // Open AnyDesk with the clean ID
       window.location.href = anydeskUrl;
     } catch (error) {
-      // Fallback: just copy to clipboard silently
       try {
         await navigator.clipboard.writeText(anydeskId);
       } catch {
@@ -153,7 +142,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
               type="text"
               placeholder="Search rooms, AnyDesk ID, IP, or notes..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchParams({ q: e.target.value })}
               className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
             <div className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -163,7 +152,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => setSearchParams({})}
                 className="absolute inset-y-0 right-0 flex items-center pr-3"
               >
                 <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

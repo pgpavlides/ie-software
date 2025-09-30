@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { getCitiesByCountryAndType, type RoomEntry } from '../data/data';
+import { useSearchParams } from 'react-router-dom';
 
 interface CityGridProps {
   country: string;
@@ -10,7 +11,8 @@ interface CityGridProps {
 }
 
 export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBack, onSelectRoom }: CityGridProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get('q') || '';
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
@@ -144,7 +146,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
         }
         break;
       case 'Escape':
-        setSearchQuery('');
+        setSearchParams({});
         setSelectedIndex(-1);
         break;
     }
@@ -183,7 +185,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
               type="text"
               placeholder="Search rooms and cities in this country... (↓↑ to navigate, Enter to connect)"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchParams({ q: e.target.value })}
               onKeyDown={handleKeyDown}
               className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
@@ -194,7 +196,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => setSearchParams({}) }
                 className="absolute inset-y-0 right-0 flex items-center pr-3"
               >
                 <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

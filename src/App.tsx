@@ -73,9 +73,9 @@ function AppContent() {
             
             {/* Room Flow */}
             <Route path="/room" element={<EscapeRoomTypeGrid 
-              onSelectType={(typeId) => navigate(`/room/${typeId}`)} 
+              onSelectType={(typeId) => navigate(`/room/${typeId}${location.search}`)} 
               onBack={() => navigate('/')} 
-              onSelectRoom={(typeId, cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}`)} 
+              onSelectRoom={(typeId, cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)} 
             />} />
             <Route path="/room/:typeId" element={<CountryGridWrapper />} />
             <Route path="/room/:typeId/:country" element={<CityGridWrapper />} />
@@ -103,13 +103,14 @@ function AppContent() {
 function CountryGridWrapper() {
   const { typeId } = useParams<{ typeId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   
   return (
     <CountryGrid 
       escapeRoomTypeId={typeId!}
-      onSelectCountry={(country) => navigate(`/room/${typeId}/${encodeURIComponent(country)}`)} 
-      onBack={() => navigate('/room')}
-      onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}`)}
+      onSelectCountry={(country) => navigate(`/room/${typeId}/${encodeURIComponent(country)}${location.search}`)} 
+      onBack={() => navigate(`/room${location.search}`)}
+      onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)}
     />
   );
 }
@@ -117,14 +118,15 @@ function CountryGridWrapper() {
 function CityGridWrapper() {
   const { typeId, country } = useParams<{ typeId: string; country: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   
   return (
     <CityGrid 
       country={decodeURIComponent(country!)}
       escapeRoomTypeId={typeId!}
-      onSelectCity={(city) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(city)}`)} 
-      onBack={() => navigate(`/room/${typeId}`)}
-      onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}`)}
+      onSelectCity={(city) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(city)}${location.search}`)} 
+      onBack={() => navigate(`/room/${typeId}${location.search}`)}
+      onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${country}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)}
     />
   );
 }
@@ -132,13 +134,14 @@ function CityGridWrapper() {
 function RoomDetailsWrapper() {
   const { typeId, country, city } = useParams<{ typeId: string; country: string; city: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   
   return (
     <RoomDetails 
       cityName={decodeURIComponent(city!)}
       escapeRoomTypeId={typeId!}
-      onBack={() => navigate(`/room/${typeId}/${country}`)}
-      onSelectRoom={(roomName) => navigate(`/room/${typeId}/${country}/${city}/${encodeURIComponent(roomName)}`)}
+      onBack={() => navigate(`/room/${typeId}/${country}${location.search}`)}
+      onSelectRoom={(roomName) => navigate(`/room/${typeId}/${country}/${city}/${encodeURIComponent(roomName)}${location.search}`)}
     />
   );
 }
@@ -146,13 +149,14 @@ function RoomDetailsWrapper() {
 function RoomInfoWrapper() {
   const { typeId, country, city, roomName } = useParams<{ typeId: string; country: string; city: string; roomName: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   
   return (
     <RoomInfo 
       cityName={decodeURIComponent(city!)}
       escapeRoomTypeId={typeId!}
       roomName={decodeURIComponent(roomName!)}
-      onBack={() => navigate(`/room/${typeId}/${country}/${city}`)}
+      onBack={() => navigate(`/room/${typeId}/${country}/${city}${location.search}`)}
     />
   );
 }

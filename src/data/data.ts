@@ -189,6 +189,16 @@ export const mindTrapData: CityData[] = [
     ]
   },
   {
+    name: "Giessen",
+    country: "Germany",
+    rooms: [
+      { name: "Atlantis", anydesk: "1 628 704 282" },
+      { name: "Atlantis-GM", anydesk: "1 498 583 111" },
+      { name: "DaVinci", anydesk: "1 148 087 094" },
+      { name: "Davinci-GM", anydesk: "1 349 083 152" }
+    ]
+  },
+  {
     name: "Solingen",
     country: "Germany",
     rooms: [
@@ -702,7 +712,10 @@ export const mindTrapData: CityData[] = [
       { name: "Exorcism-GM", anydesk: "1 638 815 185" },
       { name: "Age of Knights-GM", anydesk: "1 267 582 333" },
       { name: "Madonna - Video", anydesk: "1 684 416 430" },
-      { name: "Demons - Video", anydesk: "1 308 506 530" }
+      { name: "Demons - Video", anydesk: "1 308 506 530" },
+      { name: "GameOfThrones", anydesk: "1 673 725 780" },
+      { name: "GameOfThrones-video1", anydesk: "1 328 510 246" },
+      { name: "GameOfThrones-video2", anydesk: "1 352 110 122" }
     ]
   },
   {
@@ -824,8 +837,8 @@ export const agentFactoryData: CityData[] = [
       { name: "Score Board-4", anydesk: "1 248 515 703" },
       { name: "Registration-1", anydesk: "1 281 515 816" },
       { name: "Registration-2", anydesk: "1 601 862 070" },
-      { name: "Registration-3", anydesk: "1 738 795 833" },
-      { name: "Registration-4", anydesk: "1 647 703 317" },
+      { name: "Registration-3", anydesk: "1 467 319 158" },
+      { name: "Registration-4", anydesk: "1 023 684 604" },
       { name: "Registration-5", anydesk: "119 896 618" },
       { name: "Reception", anydesk: "1 950 562 069" },
       { name: "Briefing-Screen", anydesk: "143 804 287" },
