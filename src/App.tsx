@@ -11,8 +11,11 @@ import OvertimesPage from './components/OvertimesPage'
 import ComponentsPage from './components/ComponentsPage'
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import LoginPage from './components/LoginPage'
+import Login from './components/auth/Login'
+import ProtectedRoute from './components/auth/ProtectedRoute'
+import UserManagement from './components/admin/UserManagement'
+import { useAuthStore } from './store/authStore'
+import { useEffect } from 'react'
 
 type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components';
 
@@ -20,11 +23,13 @@ type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' 
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { initialize, initialized } = useAuthStore();
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
-  }
+  useEffect(() => {
+    if (!initialized) {
+      initialize();
+    }
+  }, [initialize, initialized]);
 
   // Determine current category based on URL
   const getCurrentCategory = (): CategoryType => {
@@ -66,34 +71,45 @@ function AppContent() {
   return (
     <ThemeProvider>
       <DeveloperOptionsProvider>
-        <Layout currentView={getCurrentCategory()} onNavigate={handleNavigate}>
-          <Routes>
-            {/* Dashboard */}
-            <Route path="/" element={<HomePage onSelectCategory={handleSelectCategory} />} />
-            
-            {/* Room Flow */}
-            <Route path="/room" element={<EscapeRoomTypeGrid 
-              onSelectType={(typeId) => navigate(`/room/${typeId}${location.search}`)} 
-              onBack={() => navigate('/')} 
-              onSelectRoom={(typeId, cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)} 
-            />} />
-            <Route path="/room/:typeId" element={<CountryGridWrapper />} />
-            <Route path="/room/:typeId/:country" element={<CityGridWrapper />} />
-            <Route path="/room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
-            <Route path="/room/:typeId/:country/:city/:roomName" element={<RoomInfoWrapper />} />
-            
-            {/* Other Pages */}
-            <Route path="/guides" element={
-              <div className="p-8">
-                <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
-                <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
-              </div>
-            } />
-            <Route path="/utilities" element={<UtilitiesPage />} />
-            <Route path="/overtimes" element={<OvertimesPage />} />
-            <Route path="/components" element={<ComponentsPage />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Protected Routes */}
+          <Route path="*" element={
+            <ProtectedRoute>
+              <Layout currentView={getCurrentCategory()} onNavigate={handleNavigate}>
+                <Routes>
+                  {/* Dashboard */}
+                  <Route path="/" element={<HomePage onSelectCategory={handleSelectCategory} />} />
+
+                  {/* Room Flow */}
+                  <Route path="/room" element={<EscapeRoomTypeGrid
+                    onSelectType={(typeId) => navigate(`/room/${typeId}${location.search}`)}
+                    onBack={() => navigate('/')}
+                    onSelectRoom={(typeId, cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)}
+                  />} />
+                  <Route path="/room/:typeId" element={<CountryGridWrapper />} />
+                  <Route path="/room/:typeId/:country" element={<CityGridWrapper />} />
+                  <Route path="/room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
+                  <Route path="/room/:typeId/:country/:city/:roomName" element={<RoomInfoWrapper />} />
+
+                  {/* Other Pages */}
+                  <Route path="/guides" element={
+                    <div className="p-8">
+                      <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
+                      <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
+                    </div>
+                  } />
+                  <Route path="/utilities" element={<UtilitiesPage />} />
+                  <Route path="/overtimes" element={<OvertimesPage />} />
+                  <Route path="/components" element={<ComponentsPage />} />
+                  <Route path="/admin/users" element={<UserManagement />} />
+                </Routes>
+              </Layout>
+            </ProtectedRoute>
+          } />
+        </Routes>
       </DeveloperOptionsProvider>
     </ThemeProvider>
   );
@@ -164,9 +180,7 @@ function RoomInfoWrapper() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <AppContent />
     </Router>
   );
 }

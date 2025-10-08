@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(mv:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx supabase login)",
+      "Bash(set SUPABASE_ACCESS_TOKEN=sbp_8c58912e7aaf93f68da2341c0699e8973ad8507c)",
+      "Bash(npx supabase login:*)",
+      "Bash(npx supabase:*)",
+      "Bash(cat:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

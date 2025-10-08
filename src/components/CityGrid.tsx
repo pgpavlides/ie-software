@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { getCitiesByCountryAndType, type RoomEntry } from '../data/data';
+import { useState, useRef, useEffect } from 'react';
+import { getCitiesByCountryAndType, type CityData, type RoomEntry } from '../services/supabaseQueries';
 import { useSearchParams } from 'react-router-dom';
 
 interface CityGridProps {
@@ -16,20 +16,70 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
-  const cities = getCitiesByCountryAndType(country, escapeRoomTypeId);
-  
+  const [cities, setCities] = useState<CityData[]>([]);
+  const [allRooms, setAllRooms] = useState<Array<RoomEntry & { cityName: string }>>([]);
+  const [filteredRooms, setFilteredRooms] = useState<Array<RoomEntry & { cityName: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch cities on mount
+  useEffect(() => {
+    async function fetchCities() {
+      setLoading(true);
+      const citiesData = await getCitiesByCountryAndType(country, escapeRoomTypeId);
+      setCities(citiesData);
+
+      // Build allRooms array
+      const rooms: Array<RoomEntry & { cityName: string }> = [];
+      citiesData.forEach(city => {
+        city.rooms?.forEach(room => {
+          rooms.push({
+            ...room,
+            cityName: city.name
+          });
+        });
+      });
+      setAllRooms(rooms);
+      setLoading(false);
+    }
+    fetchCities();
+  }, [country, escapeRoomTypeId]);
+
   // Auto-focus search input when component mounts
   useEffect(() => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, []);
-  
+
   // Reset selected index when search query changes
   useEffect(() => {
     setSelectedIndex(-1);
   }, [searchQuery]);
-  
+
+  // Filter rooms based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredRooms([]);
+      return;
+    }
+
+    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+
+    const filtered = allRooms.filter(room => {
+      const searchableText = [
+        room.name,
+        room.anydesk,
+        room.ip || '',
+        room.notes || '',
+        room.cityName
+      ].join(' ').toLowerCase();
+
+      return searchWords.every(word => searchableText.includes(word));
+    });
+
+    setFilteredRooms(filtered);
+  }, [allRooms, searchQuery]);
+
   // Scroll selected item into view
   useEffect(() => {
     if (selectedIndex >= 0 && resultsContainerRef.current) {
@@ -42,41 +92,6 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
       }
     }
   }, [selectedIndex]);
-  
-  const allRooms = useMemo(() => {
-    const rooms: Array<RoomEntry & { cityName: string }> = [];
-    cities.forEach(city => {
-      city.rooms.forEach(room => {
-        rooms.push({
-          ...room,
-          cityName: city.name
-        });
-      });
-    });
-    return rooms;
-  }, [cities]);
-  
-  const filteredRooms = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return [];
-    }
-    
-    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
-    
-    return allRooms.filter(room => {
-      // Create a searchable string containing all room data
-      const searchableText = [
-        room.name,
-        room.anydesk,
-        room.ip || '',
-        room.notes || '',
-        room.cityName
-      ].join(' ').toLowerCase();
-      
-      // Check if ALL search words are found somewhere in the searchable text
-      return searchWords.every(word => searchableText.includes(word));
-    });
-  }, [allRooms, searchQuery]);
 
   const getCountryFlag = (country: string): string => {
     const flagMap: Record<string, string> = {
@@ -305,7 +320,14 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
           )}
         </div>
 
-        {!searchQuery && (
+        {!searchQuery && loading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading cities...</p>
+          </div>
+        )}
+
+        {!searchQuery && !loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {cities.map((city) => (
             <button
@@ -322,7 +344,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
                 {city.name}
               </h3>
               <p className="text-gray-600 text-center text-sm">
-                {city.rooms.length} room{city.rooms.length !== 1 ? 's' : ''}
+                {city.rooms?.length || 0} room{city.rooms?.length !== 1 ? 's' : ''}
               </p>
             </button>
           ))}

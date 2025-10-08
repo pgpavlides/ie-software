@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/authStore';
 import {
   FiChevronsRight,
   FiLogOut,
@@ -15,7 +15,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
   const [open, setOpen] = useState(true);
-  const { currentUser, logout } = useAuth();
+  const { user, signOut } = useAuthStore();
 
   const allMenuItems = [
     { 
@@ -102,8 +102,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       </div>
 
       <CommandLineButton open={open} onToggle={onToggleCommandLine} />
-      <UserInfo open={open} user={currentUser} />
-      <LogoutButton open={open} onLogout={logout} />
+      <UserInfo open={open} user={user} />
+      <LogoutButton open={open} onLogout={signOut} />
       <ToggleClose open={open} setOpen={setOpen} />
     </motion.nav>
   );

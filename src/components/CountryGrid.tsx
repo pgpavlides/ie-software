@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { getCountriesByType, getEscapeRoomTypeById, type RoomEntry } from '../data/data';
+import { useState, useRef, useEffect } from 'react';
+import { getCountriesByType, getAllCitiesByType, type EscapeRoomType, type RoomEntry } from '../services/supabaseQueries';
+import supabase from '../lib/supabase';
 
 interface CountryGridProps {
   escapeRoomTypeId: string;
@@ -13,20 +14,79 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
-  const countries = getCountriesByType(escapeRoomTypeId);
+  const [countries, setCountries] = useState<string[]>([]);
+  const [escapeRoomType, setEscapeRoomType] = useState<EscapeRoomType | null>(null);
+  const [allRooms, setAllRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
+  const [filteredRooms, setFilteredRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
+  const [loading, setLoading] = useState(true);
   
+  // Fetch data on mount
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+      const [countriesData, citiesData, typeData] = await Promise.all([
+        getCountriesByType(escapeRoomTypeId),
+        getAllCitiesByType(escapeRoomTypeId),
+        supabase.from('escape_room_types').select('*').eq('id', escapeRoomTypeId).single()
+      ]);
+
+      setCountries(countriesData);
+      setEscapeRoomType(typeData.data);
+
+      // Build allRooms array from cities data
+      const rooms: Array<RoomEntry & { cityName: string; country: string }> = [];
+      citiesData.forEach(city => {
+        city.rooms?.forEach(room => {
+          rooms.push({
+            ...room,
+            cityName: city.name,
+            country: city.country
+          });
+        });
+      });
+      setAllRooms(rooms);
+      setLoading(false);
+    }
+    fetchData();
+  }, [escapeRoomTypeId]);
+
   // Auto-focus search input when component mounts
   useEffect(() => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, []);
-  
+
   // Reset selected index when search query changes
   useEffect(() => {
     setSelectedIndex(-1);
   }, [searchQuery]);
-  
+
+  // Filter rooms based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredRooms([]);
+      return;
+    }
+
+    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+
+    const filtered = allRooms.filter(room => {
+      const searchableText = [
+        room.name,
+        room.anydesk,
+        room.ip || '',
+        room.notes || '',
+        room.cityName,
+        room.country
+      ].join(' ').toLowerCase();
+
+      return searchWords.every(word => searchableText.includes(word));
+    });
+
+    setFilteredRooms(filtered);
+  }, [allRooms, searchQuery]);
+
   // Scroll selected item into view
   useEffect(() => {
     if (selectedIndex >= 0 && resultsContainerRef.current) {
@@ -39,45 +99,6 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
       }
     }
   }, [selectedIndex]);
-  const escapeRoomType = getEscapeRoomTypeById(escapeRoomTypeId);
-  
-  const allRooms = useMemo(() => {
-    if (!escapeRoomType) return [];
-    const rooms: Array<RoomEntry & { cityName: string; country: string }> = [];
-    escapeRoomType.cities.forEach(city => {
-      city.rooms.forEach(room => {
-        rooms.push({
-          ...room,
-          cityName: city.name,
-          country: city.country
-        });
-      });
-    });
-    return rooms;
-  }, [escapeRoomType]);
-  
-  const filteredRooms = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return [];
-    }
-    
-    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
-    
-    return allRooms.filter(room => {
-      // Create a searchable string containing all room data
-      const searchableText = [
-        room.name,
-        room.anydesk,
-        room.ip || '',
-        room.notes || '',
-        room.cityName,
-        room.country
-      ].join(' ').toLowerCase();
-      
-      // Check if ALL search words are found somewhere in the searchable text
-      return searchWords.every(word => searchableText.includes(word));
-    });
-  }, [allRooms, searchQuery]);
 
   const getCountryFlag = (country: string): string => {
     const flagMap: Record<string, string> = {
@@ -299,7 +320,14 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
           )}
         </div>
 
-        {!searchQuery && (
+        {!searchQuery && loading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading countries...</p>
+          </div>
+        )}
+
+        {!searchQuery && !loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {countries.map((country) => (
             <button

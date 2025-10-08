@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { getCityByNameAndType } from '../data/data';
+import { useState, useRef, useEffect } from 'react';
+import { getCityWithRooms, type CityData, type RoomEntry } from '../services/supabaseQueries';
 import { useSearchParams } from 'react-router-dom';
 
 interface RoomDetailsProps {
@@ -15,18 +15,62 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const roomGridRef = useRef<HTMLDivElement>(null);
-  const city = getCityByNameAndType(cityName, escapeRoomTypeId);
+  const [city, setCity] = useState<CityData | null>(null);
+  const [filteredRooms, setFilteredRooms] = useState<RoomEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch city data on mount
+  useEffect(() => {
+    async function fetchCity() {
+      setLoading(true);
+      const cityData = await getCityWithRooms(cityName, escapeRoomTypeId);
+      setCity(cityData);
+      setLoading(false);
+    }
+    fetchCity();
+  }, [cityName, escapeRoomTypeId]);
+
+  // Auto-focus search input when component mounts
   useEffect(() => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, []);
 
+  // Reset selected index when search query changes
   useEffect(() => {
     setSelectedIndex(-1);
   }, [searchQuery]);
 
+  // Filter rooms based on search query
+  useEffect(() => {
+    if (!city) {
+      setFilteredRooms([]);
+      return;
+    }
+
+    if (!searchQuery.trim()) {
+      setFilteredRooms(city.rooms || []);
+      return;
+    }
+
+    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+
+    const filtered = (city.rooms || []).filter(room => {
+      const searchableText = [
+        room.name,
+        room.anydesk,
+        room.ip || '',
+        room.notes || ''
+      ].join(' ').toLowerCase();
+
+      return searchWords.every(word => searchableText.includes(word));
+    });
+
+    setFilteredRooms(filtered);
+  }, [city, searchQuery]);
+
+  // Scroll selected item into view
   useEffect(() => {
     if (selectedIndex >= 0 && roomGridRef.current) {
       const selectedElement = roomGridRef.current.children[selectedIndex] as HTMLElement;
@@ -39,24 +83,18 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     }
   }, [selectedIndex]);
 
-  const filteredRooms = useMemo(() => {
-    if (!city || !searchQuery.trim()) {
-      return city?.rooms || [];
-    }
-
-    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
-
-    return city.rooms.filter(room => {
-      const searchableText = [
-        room.name,
-        room.anydesk,
-        room.ip || '',
-        room.notes || ''
-      ].join(' ').toLowerCase();
-
-      return searchWords.every(word => searchableText.includes(word));
-    });
-  }, [city, searchQuery]);
+  if (loading) {
+    return (
+      <div className="min-h-full p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading city data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!city) {
     return (
@@ -132,7 +170,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
             </div>
           </div>
           <p className="text-lg text-gray-600">
-            {searchQuery ? `${filteredRooms.length} of ${city.rooms.length}` : city.rooms.length} room{(searchQuery ? filteredRooms.length : city.rooms.length) !== 1 ? 's' : ''} {searchQuery ? 'found' : 'available'}
+            {searchQuery ? `${filteredRooms.length} of ${city.rooms?.length || 0}` : city.rooms?.length || 0} room{(searchQuery ? filteredRooms.length : city.rooms?.length || 0) !== 1 ? 's' : ''} {searchQuery ? 'found' : 'available'}
           </p>
         </header>
 
