@@ -4,6 +4,7 @@ import {
   FiChevronsRight,
   FiLogOut,
   FiTerminal,
+  FiHelpCircle,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 
@@ -15,6 +16,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
   const [open, setOpen] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
   const { user, signOut } = useAuthStore();
 
   const allMenuItems = [
@@ -101,10 +103,105 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
         ))}
       </div>
 
-      <CommandLineButton open={open} onToggle={onToggleCommandLine} />
+      <CommandLineButton open={open} onToggle={onToggleCommandLine} onShowHelp={() => setShowHelp(true)} />
       <UserInfo open={open} user={user} />
       <LogoutButton open={open} onLogout={signOut} />
       <ToggleClose open={open} setOpen={setOpen} />
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-800">Command Line Help</h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">How to Use Command Line</h3>
+                <p className="text-gray-600 mb-4">
+                  The command line allows you to quickly search and navigate through rooms using keyboard shortcuts.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Available Commands</h3>
+                <div className="space-y-3">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-start">
+                      <kbd className="px-2 py-1 bg-gray-700 text-white rounded text-sm font-mono mr-3">Ctrl+`</kbd>
+                      <div>
+                        <p className="font-medium text-gray-800">Open Command Line</p>
+                        <p className="text-sm text-gray-600">Press Ctrl+` anywhere to open the command search</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-start">
+                      <kbd className="px-2 py-1 bg-gray-700 text-white rounded text-sm font-mono mr-3">↓ ↑</kbd>
+                      <div>
+                        <p className="font-medium text-gray-800">Navigate Results</p>
+                        <p className="text-sm text-gray-600">Use arrow keys to navigate through search results</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-start">
+                      <kbd className="px-2 py-1 bg-gray-700 text-white rounded text-sm font-mono mr-3">Enter</kbd>
+                      <div>
+                        <p className="font-medium text-gray-800">Select Room</p>
+                        <p className="text-sm text-gray-600">Press Enter to view the selected room details</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-start">
+                      <kbd className="px-2 py-1 bg-gray-700 text-white rounded text-sm font-mono mr-3">Esc</kbd>
+                      <div>
+                        <p className="font-medium text-gray-800">Close Command Line</p>
+                        <p className="text-sm text-gray-600">Press Escape to close the command search</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Search Tips</h3>
+                <ul className="space-y-2 text-gray-600">
+                  <li className="flex items-start">
+                    <span className="text-red-600 mr-2">•</span>
+                    <span>Type room names, city names, or country names to search</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-red-600 mr-2">•</span>
+                    <span>Search by AnyDesk ID or IP address</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-red-600 mr-2">•</span>
+                    <span>Use multiple words to narrow down results</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-red-600 mr-2">•</span>
+                    <span>Results update instantly as you type</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.nav>
   );
 };
@@ -193,45 +290,61 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
   );
 };
 
-const CommandLineButton: React.FC<{ open: boolean; onToggle: () => void }> = ({ open, onToggle }) => {
+const CommandLineButton: React.FC<{ open: boolean; onToggle: () => void; onShowHelp: () => void }> = ({ open, onToggle, onShowHelp }) => {
   return (
-    <motion.button
-      layout
-      onClick={onToggle}
-      className="border-t transition-colors mt-2"
-      style={{
-        borderColor: '#444',
-        backgroundColor: 'transparent'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'rgba(234, 33, 39, 0.2)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent';
-      }}
-    >
-      <div className="flex items-center p-2">
-        <motion.div
-          layout
-          className="grid size-10 place-content-center text-lg"
-          style={{color: '#999999'}}
-        >
-          <FiTerminal />
-        </motion.div>
-        {open && (
-          <motion.span
-            layout
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.125 }}
-            className="text-xs font-medium"
-            style={{color: '#999999'}}
-          >
-            Command
-          </motion.span>
-        )}
-      </div>
-    </motion.button>
+    <div className="border-t mt-2" style={{ borderColor: '#444' }}>
+      <motion.button
+        layout
+        onClick={onToggle}
+        className="w-full transition-colors"
+        style={{
+          backgroundColor: 'transparent'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'rgba(234, 33, 39, 0.2)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        <div className="flex items-center justify-between p-2">
+          <div className="flex items-center">
+            <motion.div
+              layout
+              className="grid size-10 place-content-center text-lg"
+              style={{color: '#999999'}}
+            >
+              <FiTerminal />
+            </motion.div>
+            {open && (
+              <motion.span
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.125 }}
+                className="text-xs font-medium"
+                style={{color: '#999999'}}
+              >
+                Command
+              </motion.span>
+            )}
+          </div>
+          {open && (
+            <motion.button
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowHelp();
+              }}
+              className="grid size-6 place-content-center text-sm hover:text-white transition-colors"
+              style={{color: '#999999'}}
+              title="Command Line Help"
+            >
+              <FiHelpCircle />
+            </motion.button>
+          )}
+        </div>
+      </motion.button>
+    </div>
   );
 };
 

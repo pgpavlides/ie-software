@@ -15,6 +15,14 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    anydesk: '',
+    ip: '',
+    notes: ''
+  });
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -25,6 +33,17 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
       ]);
       setRoom(roomData);
       setCity(cityData);
+
+      // Initialize edit form with room data
+      if (roomData) {
+        setEditForm({
+          name: roomData.name,
+          anydesk: roomData.anydesk,
+          ip: roomData.ip || '',
+          notes: roomData.notes || ''
+        });
+      }
+
       setLoading(false);
     }
     fetchData();
@@ -122,6 +141,50 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
     }
   };
 
+  const handleUpdateRoom = async () => {
+    if (!room) return;
+
+    setUpdating(true);
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .update({
+          name: editForm.name,
+          anydesk: editForm.anydesk,
+          ip: editForm.ip || null,
+          notes: editForm.notes || null
+        })
+        .eq('id', room.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local state
+      setRoom(data);
+      setIsEditing(false);
+      alert('Room updated successfully!');
+    } catch (error) {
+      console.error('Error updating room:', error);
+      alert('Failed to update room. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset form to original room data
+    if (room) {
+      setEditForm({
+        name: room.name,
+        anydesk: room.anydesk,
+        ip: room.ip || '',
+        notes: room.notes || ''
+      });
+    }
+    setIsEditing(false);
+  };
+
   return (
     <div className="min-h-full p-8">
       <div className="max-w-4xl mx-auto">
@@ -134,16 +197,28 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
               <span className="mr-2">←</span>
               Back to Rooms
             </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-              title="Delete this room"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete Room
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                title="Edit this room"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Room
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                title="Delete this room"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Room
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center mb-6">
@@ -276,6 +351,99 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
             )}
           </div>
         </div>
+
+        {/* Edit Room Modal */}
+        {isEditing && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-gray-800">Edit Room</h2>
+                <button
+                  onClick={handleCancelEdit}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Room Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Room Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* AnyDesk ID */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    AnyDesk ID *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.anydesk}
+                    onChange={(e) => setEditForm({ ...editForm, anydesk: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* IP Address */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    IP Address (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.ip}
+                    onChange={(e) => setEditForm({ ...editForm, ip: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleCancelEdit}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={updating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateRoom}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={updating}
+                  >
+                    {updating ? 'Updating...' : 'Update Room'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (

@@ -22,7 +22,9 @@ export default function AddRoomModal({ isOpen, onClose, onRoomAdded }: AddRoomMo
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [newCityName, setNewCityName] = useState('');
+  const [newCountryName, setNewCountryName] = useState('');
   const [isNewCity, setIsNewCity] = useState(false);
+  const [isNewCountry, setIsNewCountry] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [anydesk, setAnydesk] = useState('');
   const [ip, setIp] = useState('');
@@ -83,6 +85,9 @@ export default function AddRoomModal({ isOpen, onClose, onRoomAdded }: AddRoomMo
     try {
       let cityId: string;
 
+      // Determine the country name to use
+      const countryName = isNewCountry ? newCountryName : selectedCountry;
+
       // Check if creating a new city or using existing one
       if (isNewCity) {
         // Create new city
@@ -90,7 +95,7 @@ export default function AddRoomModal({ isOpen, onClose, onRoomAdded }: AddRoomMo
           .from('cities')
           .insert({
             name: newCityName,
-            country: selectedCountry,
+            country: countryName,
             escape_room_type_id: selectedEscapeRoomType
           })
           .select()
@@ -135,7 +140,9 @@ export default function AddRoomModal({ isOpen, onClose, onRoomAdded }: AddRoomMo
     setSelectedCountry('');
     setSelectedCity('');
     setNewCityName('');
+    setNewCountryName('');
     setIsNewCity(false);
+    setIsNewCountry(false);
     setRoomName('');
     setAnydesk('');
     setIp('');
@@ -193,47 +200,57 @@ export default function AddRoomModal({ isOpen, onClose, onRoomAdded }: AddRoomMo
           {/* Country Selection */}
           {selectedEscapeRoomType && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Country *
-              </label>
-              <select
-                required
-                value={selectedCountry}
-                onChange={(e) => {
-                  setSelectedCountry(e.target.value);
-                  setIsNewCity(false);
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                disabled={loadingCountries}
-              >
-                <option value="">Select a country</option>
-                {countries.map((country) => (
-                  <option key={country} value={country}>
-                    {country}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Country *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNewCountry(!isNewCountry);
+                    setSelectedCountry('');
+                    setNewCountryName('');
+                    setIsNewCity(false);
+                  }}
+                  className="text-sm text-red-600 hover:text-red-700"
+                >
+                  {isNewCountry ? 'Select existing country' : '+ Add new country'}
+                </button>
+              </div>
 
-          {/* New Country Input */}
-          {selectedCountry === '' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Or enter a new country
-              </label>
-              <input
-                type="text"
-                value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
-                placeholder="e.g., Italy, Spain, etc."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
+              {isNewCountry ? (
+                <input
+                  type="text"
+                  required
+                  value={newCountryName}
+                  onChange={(e) => setNewCountryName(e.target.value)}
+                  placeholder="Enter new country name"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              ) : (
+                <select
+                  required
+                  value={selectedCountry}
+                  onChange={(e) => {
+                    setSelectedCountry(e.target.value);
+                    setIsNewCity(false);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  disabled={loadingCountries}
+                >
+                  <option value="">Select a country</option>
+                  {countries.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           )}
 
           {/* City Selection or New City */}
-          {selectedCountry && (
+          {(selectedCountry || newCountryName) && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-gray-700">

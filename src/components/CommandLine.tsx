@@ -6,9 +6,14 @@ interface CommandLineProps {
   onClose: () => void;
 }
 
+type OutputLine = {
+  text: string;
+  type: 'command' | 'success' | 'error' | 'info';
+};
+
 export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
   const [inputValue, setInputValue] = useState('');
-  const [output, setOutput] = useState<string[]>([]);
+  const [output, setOutput] = useState<OutputLine[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +31,7 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
       const anydeskUrl = `anydesk:${cleanId}`;
       window.location.href = anydeskUrl;
     } catch (error) {
-      setOutput(prev => [...prev, `Error connecting to AnyDesk: ${error}`]);
+      setOutput(prev => [...prev, { text: `Error connecting to AnyDesk: ${error}`, type: 'error' }]);
     }
   };
 
@@ -40,7 +45,7 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
     e.preventDefault();
     const command = inputValue.trim();
     if (command) {
-      setOutput(prev => [...prev, `> ${command}`]);
+      setOutput(prev => [...prev, { text: `> ${command}`, type: 'command' }]);
       parseAndExecute(command);
     }
     setInputValue('');
@@ -67,9 +72,9 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
       e.preventDefault();
       const parts = inputValue.split(' ');
       parts[parts.length - 1] = suggestions[selectedSuggestionIndex];
-      const newValue = parts.join(' ');
+      const newValue = parts.join(' ') + ' '; // Add space automatically
       setInputValue(newValue);
-      setSuggestions([]); // Hide suggestions after selection
+      updateSuggestions(newValue); // Update suggestions for next step
     }
   };
 
@@ -131,7 +136,7 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
             args = [parts[0], ...args];
         }
       if (args.length < 4) {
-        setOutput(prev => [...prev, 'Usage: connect <escaperoomtype> <country> <city> <room>']);
+        setOutput(prev => [...prev, { text: 'Usage: connect <escaperoomtype> <country> <city> <room>', type: 'info' }]);
         return;
       }
 
@@ -139,13 +144,13 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
 
       const escapeRoomType = getEscapeRoomTypes().find(t => t.id.toLowerCase() === type.toLowerCase());
       if (!escapeRoomType) {
-        setOutput(prev => [...prev, `Escape room type not found: ${type}`]);
+        setOutput(prev => [...prev, { text: `Escape room type not found: ${type}`, type: 'error' }]);
         return;
       }
 
       const cityData = getCityByNameAndType(city, escapeRoomType.id);
       if (!cityData || cityData.country.toLowerCase() !== country.toLowerCase()) {
-        setOutput(prev => [...prev, `City not found in country: ${city}, ${country}`]);
+        setOutput(prev => [...prev, { text: `City not found in country: ${city}, ${country}`, type: 'error' }]);
         return;
       }
 
@@ -154,7 +159,7 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
       const matchedRooms = rooms.filter(r => searchWords.every(word => r.name.toLowerCase().includes(word)));
 
       if (matchedRooms.length === 0) {
-        setOutput(prev => [...prev, `Room not found: ${room}`]);
+        setOutput(prev => [...prev, { text: `Room not found: ${room}`, type: 'error' }]);
         return;
       }
 
@@ -168,10 +173,25 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
       }
 
 
-      setOutput(prev => [...prev, `Connecting to ${bestMatch.name}...`]);
+      setOutput(prev => [...prev, { text: `✓ Connecting to ${bestMatch.name}...`, type: 'success' }]);
       connectAnyDesk(bestMatch.anydesk);
     } else {
-      setOutput(prev => [...prev, `Unknown command: ${cmd}`]);
+      setOutput(prev => [...prev, { text: `Unknown command: ${cmd}`, type: 'error' }]);
+    }
+  };
+
+  const getLineColor = (type: OutputLine['type']) => {
+    switch (type) {
+      case 'command':
+        return 'text-blue-400';
+      case 'success':
+        return 'text-green-400';
+      case 'error':
+        return 'text-red-400';
+      case 'info':
+        return 'text-yellow-400';
+      default:
+        return 'text-gray-300';
     }
   };
 
@@ -180,38 +200,62 @@ export default function CommandLine({ isOpen, onClose }: CommandLineProps) {
   }
 
   return (
-    <div 
-      className="fixed bottom-0 left-0 right-0 bg-gray-800 text-white p-4 shadow-lg"
-      style={{ zIndex: 1000 }}
+    <div
+      className="fixed bottom-0 left-0 right-0 shadow-2xl animate-slide-up"
+      style={{
+        zIndex: 1000,
+        background: 'linear-gradient(to bottom, #1a1a1a 0%, #0d0d0d 100%)',
+        borderTop: '1px solid #333'
+      }}
     >
-      <div className="max-h-48 overflow-y-auto mb-2">
-        {output.map((line, index) => (
-          <div key={index}>{line}</div>
-        ))}
-      </div>
-      <form onSubmit={handleFormSubmit}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          className="w-full bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-          placeholder="Enter a command..."
-        />
-      </form>
-      {suggestions.length > 0 && (
-        <ul className="bg-gray-700 border border-gray-600 rounded-md mt-1">
-          {suggestions.map((suggestion, index) => (
-            <li 
-              key={index} 
-              className={`px-2 py-1 text-sm ${index === selectedSuggestionIndex ? 'bg-red-500' : ''}`}
-            >
-              {suggestion}
-            </li>
+      <div className="max-w-7xl mx-auto">
+        {/* Output area */}
+        <div className="max-h-64 overflow-y-auto px-6 pt-4 pb-2 font-mono text-sm">
+          {output.map((line, index) => (
+            <div key={index} className={`mb-1 ${getLineColor(line.type)}`}>
+              {line.text}
+            </div>
           ))}
-        </ul>
-      )}
+        </div>
+
+        {/* Input area */}
+        <div className="px-6 pb-4">
+          <form onSubmit={handleFormSubmit}>
+            <div className="flex items-center bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500 transition-all">
+              <span className="text-red-500 font-bold mr-2 font-mono">$</span>
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                className="flex-1 bg-transparent border-none outline-none text-white font-mono placeholder-gray-500"
+                placeholder="Type a command..."
+                autoComplete="off"
+              />
+            </div>
+          </form>
+
+          {/* Suggestions */}
+          {suggestions.length > 0 && (
+            <div className="mt-2 bg-gray-900 border border-gray-700 rounded-lg overflow-hidden shadow-xl">
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  className={`px-4 py-2 font-mono text-sm cursor-pointer transition-all ${
+                    index === selectedSuggestionIndex
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-750'
+                  }`}
+                >
+                  {index === selectedSuggestionIndex && <span className="mr-2">▶</span>}
+                  {suggestion}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
