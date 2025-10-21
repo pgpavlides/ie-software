@@ -216,35 +216,82 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
   
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!searchQuery) return;
+    let totalItems = 0;
+    let currentItems: any[] = [];
 
-    const totalItems = filteredTypes.length > 0 ? filteredTypes.length : searchResults.length;
+    if (searchQuery) {
+      // When searching, use filtered results
+      if (filteredTypes.length > 0) {
+        totalItems = filteredTypes.length;
+        currentItems = filteredTypes;
+      } else {
+        totalItems = searchResults.length;
+        currentItems = searchResults;
+      }
+    } else {
+      // When not searching, use all escape room types
+      totalItems = escapeRoomTypes.length;
+      currentItems = escapeRoomTypes;
+    }
+
     if (totalItems === 0) return;
+
+    // Calculate grid dimensions (3 columns for most layouts)
+    const columns = 3;
+    const rows = Math.ceil(totalItems / columns);
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev =>
-          prev < totalItems - 1 ? prev + 1 : 0
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev + columns;
+          return newIndex < totalItems ? newIndex : prev % columns;
+        });
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev =>
-          prev > 0 ? prev - 1 : totalItems - 1
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev - columns;
+          return newIndex >= 0 ? newIndex : Math.floor((totalItems - 1) / columns) * columns + (prev % columns);
+        });
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const row = Math.floor(prev / columns);
+          const col = prev % columns;
+          const newCol = col + 1;
+          const newIndex = row * columns + newCol;
+          return newCol < columns && newIndex < totalItems ? newIndex : row * columns;
+        });
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const row = Math.floor(prev / columns);
+          const col = prev % columns;
+          const newCol = col - 1;
+          const newIndex = row * columns + newCol;
+          return newCol >= 0 ? newIndex : Math.min(row * columns + columns - 1, totalItems - 1);
+        });
         break;
       case 'Enter':
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < totalItems) {
-          if (filteredTypes.length > 0) {
-            // Navigate to selected type
-            const selectedType = filteredTypes[selectedIndex];
+          if (searchQuery) {
+            if (filteredTypes.length > 0) {
+              // Navigate to selected filtered type
+              const selectedType = filteredTypes[selectedIndex];
+              onSelectType(selectedType.id);
+            } else if (searchResults.length > 0) {
+              // Connect to selected room
+              const selectedRoom = searchResults[selectedIndex];
+              connectAnyDesk(selectedRoom.anydesk);
+            }
+          } else {
+            // Navigate to selected escape room type (when not searching)
+            const selectedType = escapeRoomTypes[selectedIndex];
             onSelectType(selectedType.id);
-          } else if (searchResults.length > 0) {
-            // Connect to selected room
-            const selectedRoom = searchResults[selectedIndex];
-            connectAnyDesk(selectedRoom.anydesk);
           }
         }
         break;
@@ -460,12 +507,16 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
                 <p className="text-gray-600">Loading escape room types...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {escapeRoomTypes.map((type: EscapeRoomType) => (
+              <div ref={resultsContainerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {escapeRoomTypes.map((type: EscapeRoomType, index) => (
                   <button
                     key={type.id}
                     onClick={() => onSelectType(type.id)}
-                    className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    className={`p-6 bg-white rounded-lg border-2 cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
+                      selectedIndex === index
+                        ? 'border-red-500 shadow-lg bg-red-50'
+                        : 'border-gray-200 hover:border-red-500 hover:shadow-lg'
+                    }`}
                     type="button"
                     role="button"
                     tabIndex={0}

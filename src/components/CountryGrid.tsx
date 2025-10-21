@@ -195,35 +195,82 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!searchQuery) return;
+    let totalItems = 0;
+    let currentItems: any[] = [];
 
-    const totalItems = filteredCountries.length > 0 ? filteredCountries.length : filteredRooms.length;
+    if (searchQuery) {
+      // When searching, use filtered results
+      if (filteredCountries.length > 0) {
+        totalItems = filteredCountries.length;
+        currentItems = filteredCountries;
+      } else {
+        totalItems = filteredRooms.length;
+        currentItems = filteredRooms;
+      }
+    } else {
+      // When not searching, use all countries
+      totalItems = countries.length;
+      currentItems = countries;
+    }
+
     if (totalItems === 0) return;
     
+    // Calculate grid dimensions (4 columns for countries, 2 for search results)
+    const columns = searchQuery && filteredCountries.length === 0 ? 2 : 4;
+    const rows = Math.ceil(totalItems / columns);
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < totalItems - 1 ? prev + 1 : 0
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev + columns;
+          return newIndex < totalItems ? newIndex : prev % columns;
+        });
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev > 0 ? prev - 1 : totalItems - 1
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev - columns;
+          return newIndex >= 0 ? newIndex : Math.floor((totalItems - 1) / columns) * columns + (prev % columns);
+        });
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const row = Math.floor(prev / columns);
+          const col = prev % columns;
+          const newCol = col + 1;
+          const newIndex = row * columns + newCol;
+          return newCol < columns && newIndex < totalItems ? newIndex : row * columns;
+        });
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const row = Math.floor(prev / columns);
+          const col = prev % columns;
+          const newCol = col - 1;
+          const newIndex = row * columns + newCol;
+          return newCol >= 0 ? newIndex : Math.min(row * columns + columns - 1, totalItems - 1);
+        });
         break;
       case 'Enter':
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < totalItems) {
-          if (filteredCountries.length > 0) {
-            // Navigate to selected country
-            const selectedCountry = filteredCountries[selectedIndex];
+          if (searchQuery) {
+            if (filteredCountries.length > 0) {
+              // Navigate to selected filtered country
+              const selectedCountry = filteredCountries[selectedIndex];
+              onSelectCountry(selectedCountry);
+            } else if (filteredRooms.length > 0) {
+              // Connect to selected room
+              const selectedRoom = filteredRooms[selectedIndex];
+              connectAnyDesk(selectedRoom.anydesk);
+            }
+          } else {
+            // Navigate to selected country (when not searching)
+            const selectedCountry = countries[selectedIndex];
             onSelectCountry(selectedCountry);
-          } else if (filteredRooms.length > 0) {
-            // Connect to selected room
-            const selectedRoom = filteredRooms[selectedIndex];
-            connectAnyDesk(selectedRoom.anydesk);
           }
         }
         break;
@@ -423,12 +470,16 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
         )}
 
         {!searchQuery && !loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {countries.map((country) => (
+          <div ref={resultsContainerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {countries.map((country, index) => (
             <button
               key={country}
               onClick={() => onSelectCountry(country)}
-              className="p-6 bg-white rounded-lg border-2 border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              className={`p-6 bg-white rounded-lg border-2 cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
+                selectedIndex === index
+                  ? 'border-red-500 shadow-lg bg-red-50'
+                  : 'border-gray-200 hover:border-red-500 hover:shadow-lg'
+              }`}
               type="button"
               role="button"
               tabIndex={0}

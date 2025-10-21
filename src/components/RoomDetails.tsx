@@ -164,26 +164,74 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!searchQuery || filteredRooms.length === 0) return;
+    let totalItems = 0;
+    let currentItems: any[] = [];
+
+    if (searchQuery) {
+      // When searching, use filtered results
+      totalItems = filteredRooms.length;
+      currentItems = filteredRooms;
+    } else {
+      // When not searching, use all rooms
+      totalItems = city?.rooms?.length || 0;
+      currentItems = city?.rooms || [];
+    }
+
+    if (totalItems === 0) return;
+
+    // Calculate grid dimensions (3 columns for rooms)
+    const columns = 3;
+    const rows = Math.ceil(totalItems / columns);
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev =>
-          prev < filteredRooms.length - 1 ? prev + 1 : 0
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev + columns;
+          return newIndex < totalItems ? newIndex : prev % columns;
+        });
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev =>
-          prev > 0 ? prev - 1 : filteredRooms.length - 1
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev - columns;
+          return newIndex >= 0 ? newIndex : Math.floor((totalItems - 1) / columns) * columns + (prev % columns);
+        });
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const row = Math.floor(prev / columns);
+          const col = prev % columns;
+          const newCol = col + 1;
+          const newIndex = row * columns + newCol;
+          return newCol < columns && newIndex < totalItems ? newIndex : row * columns;
+        });
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const row = Math.floor(prev / columns);
+          const col = prev % columns;
+          const newCol = col - 1;
+          const newIndex = row * columns + newCol;
+          return newCol >= 0 ? newIndex : Math.min(row * columns + columns - 1, totalItems - 1);
+        });
         break;
       case 'Enter':
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < filteredRooms.length) {
-          const selectedRoom = filteredRooms[selectedIndex];
-          connectAnyDesk(selectedRoom.anydesk);
+        if (selectedIndex >= 0 && selectedIndex < totalItems) {
+          if (searchQuery) {
+            // Connect to selected filtered room
+            const selectedRoom = filteredRooms[selectedIndex];
+            connectAnyDesk(selectedRoom.anydesk);
+          } else {
+            // Connect to selected room (when not searching)
+            const selectedRoom = city?.rooms?.[selectedIndex];
+            if (selectedRoom) {
+              connectAnyDesk(selectedRoom.anydesk);
+            }
+          }
         }
         break;
       case 'Escape':
@@ -261,7 +309,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
           </div>
         ) : (
           <div ref={roomGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredRooms.map((room, index) => (
+            {(searchQuery ? filteredRooms : city?.rooms || []).map((room, index) => (
             <button
               key={index}
               onClick={() => onSelectRoom(room.name)}
