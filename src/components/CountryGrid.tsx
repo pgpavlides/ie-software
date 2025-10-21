@@ -196,28 +196,23 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     let totalItems = 0;
-    let currentItems: any[] = [];
 
     if (searchQuery) {
       // When searching, use filtered results
       if (filteredCountries.length > 0) {
         totalItems = filteredCountries.length;
-        currentItems = filteredCountries;
       } else {
         totalItems = filteredRooms.length;
-        currentItems = filteredRooms;
       }
     } else {
       // When not searching, use all countries
       totalItems = countries.length;
-      currentItems = countries;
     }
 
     if (totalItems === 0) return;
     
     // Calculate grid dimensions (4 columns for countries, 2 for search results)
     const columns = searchQuery && filteredCountries.length === 0 ? 2 : 4;
-    const rows = Math.ceil(totalItems / columns);
 
     switch (e.key) {
       case 'ArrowDown':

@@ -192,28 +192,23 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     let totalItems = 0;
-    let currentItems: any[] = [];
 
     if (searchQuery) {
       // When searching, use filtered results
       if (filteredCities.length > 0) {
         totalItems = filteredCities.length;
-        currentItems = filteredCities;
       } else {
         totalItems = filteredRooms.length;
-        currentItems = filteredRooms;
       }
     } else {
       // When not searching, use all cities
       totalItems = cities.length;
-      currentItems = cities;
     }
 
     if (totalItems === 0) return;
     
     // Calculate grid dimensions (4 columns for cities, 2 for search results)
     const columns = searchQuery && filteredCities.length === 0 ? 2 : 4;
-    const rows = Math.ceil(totalItems / columns);
 
     switch (e.key) {
       case 'ArrowDown':

@@ -217,28 +217,23 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     let totalItems = 0;
-    let currentItems: any[] = [];
 
     if (searchQuery) {
       // When searching, use filtered results
       if (filteredTypes.length > 0) {
         totalItems = filteredTypes.length;
-        currentItems = filteredTypes;
       } else {
         totalItems = searchResults.length;
-        currentItems = searchResults;
       }
     } else {
       // When not searching, use all escape room types
       totalItems = escapeRoomTypes.length;
-      currentItems = escapeRoomTypes;
     }
 
     if (totalItems === 0) return;
 
     // Calculate grid dimensions (3 columns for most layouts)
     const columns = 3;
-    const rows = Math.ceil(totalItems / columns);
 
     switch (e.key) {
       case 'ArrowDown':

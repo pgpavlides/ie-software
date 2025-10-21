@@ -165,23 +165,19 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     let totalItems = 0;
-    let currentItems: any[] = [];
 
     if (searchQuery) {
       // When searching, use filtered results
       totalItems = filteredRooms.length;
-      currentItems = filteredRooms;
     } else {
       // When not searching, use all rooms
       totalItems = city?.rooms?.length || 0;
-      currentItems = city?.rooms || [];
     }
 
     if (totalItems === 0) return;
 
     // Calculate grid dimensions (3 columns for rooms)
     const columns = 3;
-    const rows = Math.ceil(totalItems / columns);
 
     switch (e.key) {
       case 'ArrowDown':
