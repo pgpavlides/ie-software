@@ -17,6 +17,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
   const [cities, setCities] = useState<CityData[]>([]);
+  const [filteredCities, setFilteredCities] = useState<CityData[]>([]);
   const [allRooms, setAllRooms] = useState<Array<RoomEntry & { cityName: string }>>([]);
   const [filteredRooms, setFilteredRooms] = useState<Array<RoomEntry & { cityName: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -77,33 +78,45 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
     setSelectedIndex(-1);
   }, [searchQuery]);
 
-  // Filter rooms based on search query
+  // Filter cities and rooms based on search query
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (!searchQuery.trim()) {
+        setFilteredCities([]);
         setFilteredRooms([]);
         return;
       }
 
-      const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+      const searchLower = searchQuery.toLowerCase().trim();
 
-      const filtered = allRooms.filter(room => {
-        const searchableText = [
-          room.name,
-          room.anydesk,
-          room.ip || '',
-          room.notes || '',
-          room.cityName
-        ].join(' ').toLowerCase();
+      // First, filter cities
+      const cityMatches = cities.filter(city => 
+        city.name.toLowerCase().includes(searchLower)
+      );
+      setFilteredCities(cityMatches);
 
-        return searchWords.every(word => searchableText.includes(word));
-      });
+      // If no cities match, search rooms
+      if (cityMatches.length === 0) {
+        const searchWords = searchLower.split(/\s+/);
+        const filtered = allRooms.filter(room => {
+          const searchableText = [
+            room.name,
+            room.anydesk,
+            room.ip || '',
+            room.notes || '',
+            room.cityName
+          ].join(' ').toLowerCase();
 
-      setFilteredRooms(filtered);
+          return searchWords.every(word => searchableText.includes(word));
+        });
+        setFilteredRooms(filtered);
+      } else {
+        setFilteredRooms([]);
+      }
     }, 150); // Debounce search to avoid excessive filtering
 
     return () => clearTimeout(timeoutId);
-  }, [allRooms, searchQuery]);
+  }, [allRooms, searchQuery, cities]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -223,7 +236,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search rooms and cities in this country... (↓↑ to navigate, Enter to connect)"
+              placeholder="Search cities or rooms in this country... (↓↑ to navigate, Enter to connect)"
               value={searchQuery}
               onChange={(e) => setSearchParams({ q: e.target.value })}
               onKeyDown={handleKeyDown}
@@ -248,17 +261,47 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
           
           {searchQuery && (
             <div className="mt-4">
-              <p className="text-sm text-gray-600 mb-3">
-                {filteredRooms.length} room{filteredRooms.length !== 1 ? 's' : ''} found in {country} for "{searchQuery}"
-              </p>
-              
-              {filteredRooms.length === 0 ? (
-                <div className="text-center py-8">
-                  <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <p className="text-gray-500">No rooms found matching "{searchQuery}"</p>
-                </div>
+              {filteredCities.length > 0 ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {filteredCities.length} cit{filteredCities.length !== 1 ? 'ies' : 'y'} found in {country} for "{searchQuery}"
+                  </p>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredCities.map((city) => (
+                      <div
+                        key={city.id}
+                        onClick={() => onSelectCity(city.name)}
+                        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 border-2 border-red-200 hover:border-red-400"
+                      >
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={getCountryFlag(country)}
+                            alt={`${country} flag`}
+                            className="w-10 h-7 object-cover rounded shadow-sm"
+                          />
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-800">{city.name}</h3>
+                            <p className="text-gray-600 text-sm">{country}</p>
+                            <p className="text-gray-500 text-xs">{city.rooms?.length || 0} rooms</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {filteredRooms.length} room{filteredRooms.length !== 1 ? 's' : ''} found in {country} for "{searchQuery}"
+                  </p>
+                  
+                  {filteredRooms.length === 0 ? (
+                    <div className="text-center py-8">
+                      <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p className="text-gray-500">No cities or rooms found matching "{searchQuery}"</p>
+                    </div>
               ) : (
                 <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
                   <div ref={resultsContainerRef} className="space-y-2">
@@ -340,6 +383,8 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
                     ))}
                   </div>
                 </div>
+                  )}
+                </>
               )}
             </div>
           )}

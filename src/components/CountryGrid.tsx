@@ -15,6 +15,7 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
   const [countries, setCountries] = useState<string[]>([]);
+  const [filteredCountries, setFilteredCountries] = useState<string[]>([]);
   const [escapeRoomType, setEscapeRoomType] = useState<EscapeRoomType | null>(null);
   const [allRooms, setAllRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
   const [filteredRooms, setFilteredRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
@@ -82,34 +83,46 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     setSelectedIndex(-1);
   }, [searchQuery]);
 
-  // Filter rooms based on search query
+  // Filter countries and rooms based on search query
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (!searchQuery.trim()) {
+        setFilteredCountries([]);
         setFilteredRooms([]);
         return;
       }
 
-      const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+      const searchLower = searchQuery.toLowerCase().trim();
 
-      const filtered = allRooms.filter(room => {
-        const searchableText = [
-          room.name,
-          room.anydesk,
-          room.ip || '',
-          room.notes || '',
-          room.cityName,
-          room.country
-        ].join(' ').toLowerCase();
+      // First, filter countries
+      const countryMatches = countries.filter(country => 
+        country.toLowerCase().includes(searchLower)
+      );
+      setFilteredCountries(countryMatches);
 
-        return searchWords.every(word => searchableText.includes(word));
-      });
+      // If no countries match, search rooms
+      if (countryMatches.length === 0) {
+        const searchWords = searchLower.split(/\s+/);
+        const filtered = allRooms.filter(room => {
+          const searchableText = [
+            room.name,
+            room.anydesk,
+            room.ip || '',
+            room.notes || '',
+            room.cityName,
+            room.country
+          ].join(' ').toLowerCase();
 
-      setFilteredRooms(filtered);
+          return searchWords.every(word => searchableText.includes(word));
+        });
+        setFilteredRooms(filtered);
+      } else {
+        setFilteredRooms([]);
+      }
     }, 150); // Debounce search to avoid excessive filtering
 
     return () => clearTimeout(timeoutId);
-  }, [allRooms, searchQuery]);
+  }, [allRooms, searchQuery, countries]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -222,7 +235,7 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search rooms, cities in this type... (↓↑ to navigate, Enter to connect)"
+              placeholder="Search countries or rooms in this type... (↓↑ to navigate, Enter to connect)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -247,17 +260,44 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
           
           {searchQuery && (
             <div className="mt-4">
-              <p className="text-sm text-gray-600 mb-3">
-                {filteredRooms.length} room{filteredRooms.length !== 1 ? 's' : ''} found in {escapeRoomType?.name} for "{searchQuery}"
-              </p>
-              
-              {filteredRooms.length === 0 ? (
-                <div className="text-center py-8">
-                  <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <p className="text-gray-500">No rooms found matching "{searchQuery}"</p>
-                </div>
+              {filteredCountries.length > 0 ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {filteredCountries.length} countr{filteredCountries.length !== 1 ? 'ies' : 'y'} found for "{searchQuery}"
+                  </p>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredCountries.map((country) => (
+                      <div
+                        key={country}
+                        onClick={() => onSelectCountry(country)}
+                        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 border-2 border-red-200 hover:border-red-400 flex items-center gap-4"
+                      >
+                        <img
+                          src={getCountryFlag(country)}
+                          alt={`${country} flag`}
+                          className="w-12 h-8 object-cover rounded shadow-sm"
+                        />
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-800">{country}</h3>
+                          <p className="text-gray-600 text-sm">{escapeRoomType?.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {filteredRooms.length} room{filteredRooms.length !== 1 ? 's' : ''} found in {escapeRoomType?.name} for "{searchQuery}"
+                  </p>
+                  
+                  {filteredRooms.length === 0 ? (
+                    <div className="text-center py-8">
+                      <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p className="text-gray-500">No countries or rooms found matching "{searchQuery}"</p>
+                    </div>
               ) : (
                 <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
                   <div ref={resultsContainerRef} className="space-y-2">
@@ -339,6 +379,8 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
                     ))}
                   </div>
                 </div>
+                  )}
+                </>
               )}
             </div>
           )}

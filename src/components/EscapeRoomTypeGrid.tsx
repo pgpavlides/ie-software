@@ -17,6 +17,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
   const resultsContainerRef = useRef<HTMLDivElement>(null);
   const [escapeRoomTypes, setEscapeRoomTypes] = useState<EscapeRoomType[]>([]);
   const [searchResults, setSearchResults] = useState<Array<RoomEntry & { city_name: string; country: string; type_id: string }>>([]);
+  const [filteredTypes, setFilteredTypes] = useState<EscapeRoomType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,13 +70,14 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
     fetchTypes();
   };
 
-  // Search rooms when query changes
+  // Search types and rooms when query changes
   useEffect(() => {
     let isCancelled = false;
     
     async function performSearch() {
       if (!searchQuery.trim()) {
         setSearchResults([]);
+        setFilteredTypes([]);
         return;
       }
 
@@ -83,13 +85,31 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
       
       setSearching(true);
       try {
-        const results = await searchRooms(searchQuery);
+        // First, filter room types by name and description
+        const typeMatches = escapeRoomTypes.filter(type => 
+          type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          type.description.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        
         if (!isCancelled) {
-          setSearchResults(results);
+          setFilteredTypes(typeMatches);
+        }
+
+        // If no types match, search all rooms
+        if (typeMatches.length === 0) {
+          const results = await searchRooms(searchQuery);
+          if (!isCancelled) {
+            setSearchResults(results);
+          }
+        } else {
+          // Clear room results if types match
+          if (!isCancelled) {
+            setSearchResults([]);
+          }
         }
       } catch (err) {
         if (!isCancelled) {
-          console.error('Error searching rooms:', err);
+          console.error('Error searching:', err);
         }
       } finally {
         if (!isCancelled) {
@@ -104,7 +124,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
       isCancelled = true;
       clearTimeout(debounce);
     };
-  }, [searchQuery]);
+  }, [searchQuery, escapeRoomTypes]);
   
   // Auto-focus search input when component mounts
   useEffect(() => {
@@ -249,7 +269,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search all rooms, cities, countries... (↓↑ to navigate, Enter to connect)"
+              placeholder="Search escape room types or all rooms... (↓↑ to navigate, Enter to connect)"
               value={searchQuery}
               onChange={(e) => setSearchParams({ q: e.target.value })}
               onKeyDown={handleKeyDown}
@@ -281,18 +301,39 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-gray-600 mb-3">
-                    {searchResults.length} room{searchResults.length !== 1 ? 's' : ''} found for "{searchQuery}"
-                  </p>
-
-                  {searchResults.length === 0 ? (
-                    <div className="text-center py-8">
-                      <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <p className="text-gray-500">No rooms found matching "{searchQuery}"</p>
-                    </div>
+                  {filteredTypes.length > 0 ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">
+                        {filteredTypes.length} escape room type{filteredTypes.length !== 1 ? 's' : ''} found for "{searchQuery}"
+                      </p>
+                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {filteredTypes.map((type) => (
+                          <div
+                            key={type.id}
+                            onClick={() => onSelectType(type.id)}
+                            className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 border-2 border-red-200 hover:border-red-400"
+                          >
+                            <div className="text-4xl mb-4">🏠</div>
+                            <h3 className="text-xl font-bold text-gray-800 mb-2">{type.name}</h3>
+                            <p className="text-gray-600">{type.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   ) : (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">
+                        {searchResults.length} room{searchResults.length !== 1 ? 's' : ''} found for "{searchQuery}"
+                      </p>
+
+                      {searchResults.length === 0 ? (
+                        <div className="text-center py-8">
+                          <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          <p className="text-gray-500">No escape room types or rooms found matching "{searchQuery}"</p>
+                        </div>
+                      ) : (
                     <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
                       <div ref={resultsContainerRef} className="space-y-2">
                         {searchResults.map((room, index) => (
@@ -373,6 +414,8 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
                         ))}
                       </div>
                     </div>
+                  )}
+                    </>
                   )}
                 </>
               )}
