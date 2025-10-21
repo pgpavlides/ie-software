@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { getCityWithRooms, type CityData, type RoomEntry } from '../services/supabaseQueries';
-import { useSearchParams } from 'react-router-dom';
 
 interface RoomDetailsProps {
   cityName: string;
@@ -10,8 +9,7 @@ interface RoomDetailsProps {
 }
 
 export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSelectRoom }: RoomDetailsProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchQuery = searchParams.get('q') || '';
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const roomGridRef = useRef<HTMLDivElement>(null);
@@ -30,12 +28,31 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     fetchCity();
   }, [cityName, escapeRoomTypeId]);
 
-  // Auto-focus search input when component mounts
+  // Auto-focus search input when data is loaded
   useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (!loading && city) {
+      const timer = setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [loading, city]);
+
+  // Add global keyboard shortcut for back navigation
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Backspace') {
+        e.preventDefault();
+        onBack();
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [onBack]);
 
   // Reset selected index when search query changes
   useEffect(() => {
@@ -145,6 +162,37 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     }
   };
 
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!searchQuery || filteredRooms.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev =>
+          prev < filteredRooms.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev =>
+          prev > 0 ? prev - 1 : filteredRooms.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedIndex >= 0 && selectedIndex < filteredRooms.length) {
+          const selectedRoom = filteredRooms[selectedIndex];
+          connectAnyDesk(selectedRoom.anydesk);
+        }
+        break;
+      case 'Escape':
+        setSearchQuery('');
+        setSelectedIndex(-1);
+        break;
+    }
+  };
+
   return (
     <div className="min-h-full p-8">
       <div className="max-w-6xl mx-auto">
@@ -177,10 +225,12 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
         <div className="mb-6">
           <div className="relative max-w-md">
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search rooms, AnyDesk ID, IP, or notes..."
               value={searchQuery}
-              onChange={(e) => setSearchParams({ q: e.target.value })}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
             <div className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -190,7 +240,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchParams({})}
+                onClick={() => setSearchQuery('')}
                 className="absolute inset-y-0 right-0 flex items-center pr-3"
               >
                 <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

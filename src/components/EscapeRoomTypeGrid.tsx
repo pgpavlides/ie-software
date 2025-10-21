@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { getEscapeRoomTypes, searchRooms, type EscapeRoomType, type RoomEntry } from '../services/supabaseQueries';
-import { useSearchParams } from 'react-router-dom';
 import AddRoomModal from './modals/AddRoomModal';
 
 interface EscapeRoomTypeGridProps {
@@ -10,8 +9,7 @@ interface EscapeRoomTypeGridProps {
 }
 
 export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom }: EscapeRoomTypeGridProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchQuery = searchParams.get('q') || '';
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
@@ -132,6 +130,19 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
       searchInputRef.current.focus();
     }
   }, []);
+
+  // Add global keyboard shortcut for back navigation
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Backspace') {
+        e.preventDefault();
+        onBack();
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [onBack]);
   
   // Reset selected index when search query changes
   useEffect(() => {
@@ -205,30 +216,40 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
   
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!searchQuery || searchResults.length === 0) return;
+    if (!searchQuery) return;
+
+    const totalItems = filteredTypes.length > 0 ? filteredTypes.length : searchResults.length;
+    if (totalItems === 0) return;
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
         setSelectedIndex(prev =>
-          prev < searchResults.length - 1 ? prev + 1 : 0
+          prev < totalItems - 1 ? prev + 1 : 0
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex(prev =>
-          prev > 0 ? prev - 1 : searchResults.length - 1
+          prev > 0 ? prev - 1 : totalItems - 1
         );
         break;
       case 'Enter':
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
-          const selectedRoom = searchResults[selectedIndex];
-          connectAnyDesk(selectedRoom.anydesk);
+        if (selectedIndex >= 0 && selectedIndex < totalItems) {
+          if (filteredTypes.length > 0) {
+            // Navigate to selected type
+            const selectedType = filteredTypes[selectedIndex];
+            onSelectType(selectedType.id);
+          } else if (searchResults.length > 0) {
+            // Connect to selected room
+            const selectedRoom = searchResults[selectedIndex];
+            connectAnyDesk(selectedRoom.anydesk);
+          }
         }
         break;
       case 'Escape':
-        setSearchParams({});
+        setSearchQuery('');
         setSelectedIndex(-1);
         break;
     }
@@ -271,7 +292,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
               type="text"
               placeholder="Search escape room types or all rooms... (↓↑ to navigate, Enter to connect)"
               value={searchQuery}
-              onChange={(e) => setSearchParams({ q: e.target.value })}
+              onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
@@ -282,7 +303,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchParams({})}
+                onClick={() => setSearchQuery('')}
                 className="absolute inset-y-0 right-0 flex items-center pr-3"
               >
                 <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -306,16 +327,24 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
                       <p className="text-sm text-gray-600 mb-3">
                         {filteredTypes.length} escape room type{filteredTypes.length !== 1 ? 's' : ''} found for "{searchQuery}"
                       </p>
-                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {filteredTypes.map((type) => (
+                      <div ref={resultsContainerRef} className="space-y-2">
+                        {filteredTypes.map((type, index) => (
                           <div
                             key={type.id}
                             onClick={() => onSelectType(type.id)}
-                            className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 border-2 border-red-200 hover:border-red-400"
+                            className={`bg-white rounded border p-4 transition-all cursor-pointer ${
+                              selectedIndex === index
+                                ? 'border-red-500 shadow-lg bg-red-50'
+                                : 'border-gray-200 hover:border-red-300 hover:shadow-sm'
+                            }`}
                           >
-                            <div className="text-4xl mb-4">🏠</div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">{type.name}</h3>
-                            <p className="text-gray-600">{type.description}</p>
+                            <div className="flex items-center gap-4">
+                              <div className="text-2xl">🏠</div>
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">{type.name}</h3>
+                                <p className="text-sm text-gray-600">{type.description}</p>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>

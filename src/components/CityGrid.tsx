@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { getCitiesByCountryAndType, type CityData, type RoomEntry } from '../services/supabaseQueries';
-import { useSearchParams } from 'react-router-dom';
 
 interface CityGridProps {
   country: string;
@@ -11,8 +10,7 @@ interface CityGridProps {
 }
 
 export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBack, onSelectRoom }: CityGridProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchQuery = searchParams.get('q') || '';
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
@@ -68,10 +66,27 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
 
   // Auto-focus search input when component mounts
   useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
+    const timer = setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
+
+  // Add global keyboard shortcut for back navigation
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Backspace') {
+        e.preventDefault();
+        onBack();
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [onBack]);
 
   // Reset selected index when search query changes
   useEffect(() => {
@@ -176,30 +191,40 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
   
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!searchQuery || filteredRooms.length === 0) return;
+    if (!searchQuery) return;
+
+    const totalItems = filteredCities.length > 0 ? filteredCities.length : filteredRooms.length;
+    if (totalItems === 0) return;
     
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
         setSelectedIndex(prev => 
-          prev < filteredRooms.length - 1 ? prev + 1 : 0
+          prev < totalItems - 1 ? prev + 1 : 0
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex(prev => 
-          prev > 0 ? prev - 1 : filteredRooms.length - 1
+          prev > 0 ? prev - 1 : totalItems - 1
         );
         break;
       case 'Enter':
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < filteredRooms.length) {
-          const selectedRoom = filteredRooms[selectedIndex];
-          connectAnyDesk(selectedRoom.anydesk);
+        if (selectedIndex >= 0 && selectedIndex < totalItems) {
+          if (filteredCities.length > 0) {
+            // Navigate to selected city
+            const selectedCity = filteredCities[selectedIndex];
+            onSelectCity(selectedCity.name);
+          } else if (filteredRooms.length > 0) {
+            // Connect to selected room
+            const selectedRoom = filteredRooms[selectedIndex];
+            connectAnyDesk(selectedRoom.anydesk);
+          }
         }
         break;
       case 'Escape':
-        setSearchParams({});
+        setSearchQuery('');
         setSelectedIndex(-1);
         break;
     }
@@ -238,7 +263,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
               type="text"
               placeholder="Search cities or rooms in this country... (↓↑ to navigate, Enter to connect)"
               value={searchQuery}
-              onChange={(e) => setSearchParams({ q: e.target.value })}
+              onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
@@ -249,7 +274,7 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchParams({}) }
+                onClick={() => setSearchQuery('')}
                 className="absolute inset-y-0 right-0 flex items-center pr-3"
               >
                 <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -266,12 +291,16 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
                   <p className="text-sm text-gray-600 mb-3">
                     {filteredCities.length} cit{filteredCities.length !== 1 ? 'ies' : 'y'} found in {country} for "{searchQuery}"
                   </p>
-                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredCities.map((city) => (
+                  <div ref={resultsContainerRef} className="space-y-2">
+                    {filteredCities.map((city, index) => (
                       <div
                         key={city.id}
                         onClick={() => onSelectCity(city.name)}
-                        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 border-2 border-red-200 hover:border-red-400"
+                        className={`bg-white rounded border p-4 transition-all cursor-pointer ${
+                          selectedIndex === index
+                            ? 'border-red-500 shadow-lg bg-red-50'
+                            : 'border-gray-200 hover:border-red-300 hover:shadow-sm'
+                        }`}
                       >
                         <div className="flex items-center gap-4">
                           <img
@@ -280,9 +309,9 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
                             className="w-10 h-7 object-cover rounded shadow-sm"
                           />
                           <div>
-                            <h3 className="text-xl font-bold text-gray-800">{city.name}</h3>
-                            <p className="text-gray-600 text-sm">{country}</p>
-                            <p className="text-gray-500 text-xs">{city.rooms?.length || 0} rooms</p>
+                            <h3 className="text-lg font-bold text-gray-800">{city.name}</h3>
+                            <p className="text-sm text-gray-600">{country}</p>
+                            <p className="text-xs text-gray-500">{city.rooms?.length || 0} rooms</p>
                           </div>
                         </div>
                       </div>

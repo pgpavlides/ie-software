@@ -78,6 +78,19 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     }
   }, []);
 
+  // Add global keyboard shortcut for back navigation
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Backspace') {
+        e.preventDefault();
+        onBack();
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [onBack]);
+
   // Reset selected index when search query changes
   useEffect(() => {
     setSelectedIndex(-1);
@@ -182,26 +195,36 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!searchQuery || filteredRooms.length === 0) return;
+    if (!searchQuery) return;
+
+    const totalItems = filteredCountries.length > 0 ? filteredCountries.length : filteredRooms.length;
+    if (totalItems === 0) return;
     
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
         setSelectedIndex(prev => 
-          prev < filteredRooms.length - 1 ? prev + 1 : 0
+          prev < totalItems - 1 ? prev + 1 : 0
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex(prev => 
-          prev > 0 ? prev - 1 : filteredRooms.length - 1
+          prev > 0 ? prev - 1 : totalItems - 1
         );
         break;
       case 'Enter':
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < filteredRooms.length) {
-          const selectedRoom = filteredRooms[selectedIndex];
-          connectAnyDesk(selectedRoom.anydesk);
+        if (selectedIndex >= 0 && selectedIndex < totalItems) {
+          if (filteredCountries.length > 0) {
+            // Navigate to selected country
+            const selectedCountry = filteredCountries[selectedIndex];
+            onSelectCountry(selectedCountry);
+          } else if (filteredRooms.length > 0) {
+            // Connect to selected room
+            const selectedRoom = filteredRooms[selectedIndex];
+            connectAnyDesk(selectedRoom.anydesk);
+          }
         }
         break;
       case 'Escape':
@@ -265,21 +288,27 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
                   <p className="text-sm text-gray-600 mb-3">
                     {filteredCountries.length} countr{filteredCountries.length !== 1 ? 'ies' : 'y'} found for "{searchQuery}"
                   </p>
-                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredCountries.map((country) => (
+                  <div ref={resultsContainerRef} className="space-y-2">
+                    {filteredCountries.map((country, index) => (
                       <div
                         key={country}
                         onClick={() => onSelectCountry(country)}
-                        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 border-2 border-red-200 hover:border-red-400 flex items-center gap-4"
+                        className={`bg-white rounded border p-4 transition-all cursor-pointer ${
+                          selectedIndex === index
+                            ? 'border-red-500 shadow-lg bg-red-50'
+                            : 'border-gray-200 hover:border-red-300 hover:shadow-sm'
+                        }`}
                       >
-                        <img
-                          src={getCountryFlag(country)}
-                          alt={`${country} flag`}
-                          className="w-12 h-8 object-cover rounded shadow-sm"
-                        />
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-800">{country}</h3>
-                          <p className="text-gray-600 text-sm">{escapeRoomType?.name}</p>
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={getCountryFlag(country)}
+                            alt={`${country} flag`}
+                            className="w-10 h-7 object-cover rounded shadow-sm"
+                          />
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-800">{country}</h3>
+                            <p className="text-sm text-gray-600">{escapeRoomType?.name}</p>
+                          </div>
                         </div>
                       </div>
                     ))}
