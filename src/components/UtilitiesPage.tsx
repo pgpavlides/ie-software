@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiPlay, FiTerminal, FiClock, FiCheckCircle, FiXCircle, FiAlertCircle, FiPlus, FiTool, FiTrash2, FiUpload, FiDownload, FiBook, FiX } from 'react-icons/fi';
+import { FiPlay, FiTerminal, FiClock, FiCheckCircle, FiXCircle, FiAlertCircle, FiPlus, FiTrash2, FiUpload, FiDownload, FiX } from 'react-icons/fi';
 import supabase from '../lib/supabase';
 
 interface Script {
@@ -177,7 +177,7 @@ export default function UtilitiesPage() {
       if (logError) throw logError;
 
       // Download the script file from storage
-      const { data: fileData, error: downloadError } = await supabase
+      const { error: downloadError } = await supabase
         .storage
         .from('scripts')
         .download(script.current_version.file_path);
