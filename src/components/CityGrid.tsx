@@ -23,25 +23,46 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
 
   // Fetch cities on mount
   useEffect(() => {
+    let isCancelled = false;
+    
     async function fetchCities() {
+      if (isCancelled) return;
+      
       setLoading(true);
-      const citiesData = await getCitiesByCountryAndType(country, escapeRoomTypeId);
-      setCities(citiesData);
+      try {
+        const citiesData = await getCitiesByCountryAndType(country, escapeRoomTypeId);
+        
+        if (isCancelled) return;
+        
+        setCities(citiesData);
 
-      // Build allRooms array
-      const rooms: Array<RoomEntry & { cityName: string }> = [];
-      citiesData.forEach(city => {
-        city.rooms?.forEach(room => {
-          rooms.push({
-            ...room,
-            cityName: city.name
+        // Build allRooms array
+        const rooms: Array<RoomEntry & { cityName: string }> = [];
+        citiesData.forEach(city => {
+          city.rooms?.forEach(room => {
+            rooms.push({
+              ...room,
+              cityName: city.name
+            });
           });
         });
-      });
-      setAllRooms(rooms);
-      setLoading(false);
+        setAllRooms(rooms);
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Error fetching cities:', err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
+    
     fetchCities();
+    
+    return () => {
+      isCancelled = true;
+    };
   }, [country, escapeRoomTypeId]);
 
   // Auto-focus search input when component mounts
@@ -58,26 +79,30 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
 
   // Filter rooms based on search query
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredRooms([]);
-      return;
-    }
+    const timeoutId = setTimeout(() => {
+      if (!searchQuery.trim()) {
+        setFilteredRooms([]);
+        return;
+      }
 
-    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+      const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
 
-    const filtered = allRooms.filter(room => {
-      const searchableText = [
-        room.name,
-        room.anydesk,
-        room.ip || '',
-        room.notes || '',
-        room.cityName
-      ].join(' ').toLowerCase();
+      const filtered = allRooms.filter(room => {
+        const searchableText = [
+          room.name,
+          room.anydesk,
+          room.ip || '',
+          room.notes || '',
+          room.cityName
+        ].join(' ').toLowerCase();
 
-      return searchWords.every(word => searchableText.includes(word));
-    });
+        return searchWords.every(word => searchableText.includes(word));
+      });
 
-    setFilteredRooms(filtered);
+      setFilteredRooms(filtered);
+    }, 150); // Debounce search to avoid excessive filtering
+
+    return () => clearTimeout(timeoutId);
   }, [allRooms, searchQuery]);
 
   // Scroll selected item into view

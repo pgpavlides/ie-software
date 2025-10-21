@@ -23,14 +23,45 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
 
   // Fetch escape room types on mount
   useEffect(() => {
+    let isCancelled = false;
+    
+    const fetchTypes = async () => {
+      if (isCancelled) return;
+      
+      setLoading(true);
+      try {
+        const types = await getEscapeRoomTypes();
+        if (!isCancelled) {
+          setEscapeRoomTypes(types);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Error fetching escape room types:', err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    
     fetchTypes();
+    
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const fetchTypes = async () => {
     setLoading(true);
-    const types = await getEscapeRoomTypes();
-    setEscapeRoomTypes(types);
-    setLoading(false);
+    try {
+      const types = await getEscapeRoomTypes();
+      setEscapeRoomTypes(types);
+    } catch (err) {
+      console.error('Error fetching escape room types:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRoomAdded = () => {
@@ -40,20 +71,39 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
 
   // Search rooms when query changes
   useEffect(() => {
+    let isCancelled = false;
+    
     async function performSearch() {
       if (!searchQuery.trim()) {
         setSearchResults([]);
         return;
       }
 
+      if (isCancelled) return;
+      
       setSearching(true);
-      const results = await searchRooms(searchQuery);
-      setSearchResults(results);
-      setSearching(false);
+      try {
+        const results = await searchRooms(searchQuery);
+        if (!isCancelled) {
+          setSearchResults(results);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Error searching rooms:', err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setSearching(false);
+        }
+      }
     }
 
     const debounce = setTimeout(performSearch, 300);
-    return () => clearTimeout(debounce);
+    
+    return () => {
+      isCancelled = true;
+      clearTimeout(debounce);
+    };
   }, [searchQuery]);
   
   // Auto-focus search input when component mounts

@@ -330,17 +330,26 @@ const CommandLineButton: React.FC<{ open: boolean; onToggle: () => void; onShowH
             )}
           </div>
           {open && (
-            <motion.button
+            <motion.div
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 onShowHelp();
               }}
-              className="grid size-6 place-content-center text-sm hover:text-white transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onShowHelp();
+                }
+              }}
+              className="grid size-6 place-content-center text-sm hover:text-white transition-colors cursor-pointer"
               style={{color: '#999999'}}
               title="Command Line Help"
             >
               <FiHelpCircle />
-            </motion.button>
+            </motion.div>
           )}
         </div>
       </motion.button>

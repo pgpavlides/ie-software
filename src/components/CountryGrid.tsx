@@ -22,32 +22,52 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   
   // Fetch data on mount
   useEffect(() => {
+    let isCancelled = false;
+    
     async function fetchData() {
+      if (isCancelled) return;
+      
       setLoading(true);
-      const [countriesData, citiesData, typeData] = await Promise.all([
-        getCountriesByType(escapeRoomTypeId),
-        getAllCitiesByType(escapeRoomTypeId),
-        supabase.from('escape_room_types').select('*').eq('id', escapeRoomTypeId).single()
-      ]);
+      try {
+        const [countriesData, citiesData, typeData] = await Promise.all([
+          getCountriesByType(escapeRoomTypeId),
+          getAllCitiesByType(escapeRoomTypeId),
+          supabase.from('escape_room_types').select('*').eq('id', escapeRoomTypeId).single()
+        ]);
 
-      setCountries(countriesData);
-      setEscapeRoomType(typeData.data);
+        if (isCancelled) return;
 
-      // Build allRooms array from cities data
-      const rooms: Array<RoomEntry & { cityName: string; country: string }> = [];
-      citiesData.forEach(city => {
-        city.rooms?.forEach(room => {
-          rooms.push({
-            ...room,
-            cityName: city.name,
-            country: city.country
+        setCountries(countriesData);
+        setEscapeRoomType(typeData.data);
+
+        // Build allRooms array from cities data
+        const rooms: Array<RoomEntry & { cityName: string; country: string }> = [];
+        citiesData.forEach(city => {
+          city.rooms?.forEach(room => {
+            rooms.push({
+              ...room,
+              cityName: city.name,
+              country: city.country
+            });
           });
         });
-      });
-      setAllRooms(rooms);
-      setLoading(false);
+        setAllRooms(rooms);
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Error fetching data:', err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
+    
     fetchData();
+    
+    return () => {
+      isCancelled = true;
+    };
   }, [escapeRoomTypeId]);
 
   // Auto-focus search input when component mounts
@@ -64,27 +84,31 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
 
   // Filter rooms based on search query
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredRooms([]);
-      return;
-    }
+    const timeoutId = setTimeout(() => {
+      if (!searchQuery.trim()) {
+        setFilteredRooms([]);
+        return;
+      }
 
-    const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
+      const searchWords = searchQuery.toLowerCase().trim().split(/\s+/);
 
-    const filtered = allRooms.filter(room => {
-      const searchableText = [
-        room.name,
-        room.anydesk,
-        room.ip || '',
-        room.notes || '',
-        room.cityName,
-        room.country
-      ].join(' ').toLowerCase();
+      const filtered = allRooms.filter(room => {
+        const searchableText = [
+          room.name,
+          room.anydesk,
+          room.ip || '',
+          room.notes || '',
+          room.cityName,
+          room.country
+        ].join(' ').toLowerCase();
 
-      return searchWords.every(word => searchableText.includes(word));
-    });
+        return searchWords.every(word => searchableText.includes(word));
+      });
 
-    setFilteredRooms(filtered);
+      setFilteredRooms(filtered);
+    }, 150); // Debounce search to avoid excessive filtering
+
+    return () => clearTimeout(timeoutId);
   }, [allRooms, searchQuery]);
 
   // Scroll selected item into view
