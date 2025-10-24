@@ -1,21 +1,21 @@
-import { BrowserRouter as Router, Routes, Route, useParams, useNavigate, useLocation } from 'react-router-dom'
-import Layout from './components/Layout'
-import HomePage from './components/HomePage'
-import EscapeRoomTypeGrid from './components/EscapeRoomTypeGrid'
-import CountryGrid from './components/CountryGrid'
-import CityGrid from './components/CityGrid'
-import RoomDetails from './components/RoomDetails'
-import RoomInfo from './components/RoomInfo'
-import UtilitiesPage from './components/UtilitiesPage'
-import OvertimesPage from './components/OvertimesPage'
-import ComponentsPage from './components/ComponentsPage'
-import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext'
-import { ThemeProvider } from './contexts/ThemeContext'
-import Login from './components/auth/Login'
-import ProtectedRoute from './components/auth/ProtectedRoute'
-import UserManagement from './components/admin/UserManagement'
-import { useAuthStore } from './store/authStore'
-import { useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, useParams, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import Layout from './components/Layout';
+import HomePage from './components/HomePage';
+import EscapeRoomTypeGrid from './components/EscapeRoomTypeGrid';
+import CountryGrid from './components/CountryGrid';
+import CityGrid from './components/CityGrid';
+import RoomDetails from './components/RoomDetails';
+import RoomInfo from './components/RoomInfo';
+import UtilitiesPage from './components/UtilitiesPage';
+import OvertimesPage from './components/OvertimesPage';
+import ComponentsPage from './components/ComponentsPage';
+import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import Login from './components/auth/Login';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import UserManagement from './components/admin/UserManagement';
+import { useAuthStore } from './store/authStore';
+import { useEffect } from 'react';
 
 type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components';
 
@@ -23,13 +23,6 @@ type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' 
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { initialize, initialized } = useAuthStore();
-
-  useEffect(() => {
-    if (!initialized) {
-      initialize();
-    }
-  }, [initialize, initialized]);
 
   // Determine current category based on URL
   const getCurrentCategory = (): CategoryType => {
@@ -64,55 +57,38 @@ function AppContent() {
     }
   };
 
-  const handleSelectCategory = (category: string) => {
-    handleNavigate(category);
+  return (
+    <Layout currentView={getCurrentCategory()} onNavigate={handleNavigate}>
+      <Outlet />
+    </Layout>
+  );
+}
+
+function HomePageWrapper() {
+  const navigate = useNavigate();
+  const onSelectCategory = (category: string) => {
+    navigate(category === 'dashboard' ? '/' : `/${category}`);
+  };
+  return <HomePage onSelectCategory={onSelectCategory} />;
+}
+
+function EscapeRoomTypeGridWrapper() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const onSelectType = (typeId: string) => {
+    navigate(`/room/${typeId}${location.search}`);
   };
 
-  return (
-    <ThemeProvider>
-      <DeveloperOptionsProvider>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
+  const onBack = () => {
+    navigate('/');
+  };
 
-          {/* Protected Routes */}
-          <Route path="*" element={
-            <ProtectedRoute>
-              <Layout currentView={getCurrentCategory()} onNavigate={handleNavigate}>
-                <Routes>
-                  {/* Dashboard */}
-                  <Route path="/" element={<HomePage onSelectCategory={handleSelectCategory} />} />
+  const onSelectRoom = (typeId: string, cityName: string, roomName: string) => {
+    navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`);
+  };
 
-                  {/* Room Flow */}
-                  <Route path="/room" element={<EscapeRoomTypeGrid
-                    onSelectType={(typeId) => navigate(`/room/${typeId}${location.search}`)}
-                    onBack={() => navigate('/')}
-                    onSelectRoom={(typeId, cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)}
-                  />} />
-                  <Route path="/room/:typeId" element={<CountryGridWrapper />} />
-                  <Route path="/room/:typeId/:country" element={<CityGridWrapper />} />
-                  <Route path="/room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
-                  <Route path="/room/:typeId/:country/:city/:roomName" element={<RoomInfoWrapper />} />
-
-                  {/* Other Pages */}
-                  <Route path="/guides" element={
-                    <div className="p-8">
-                      <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
-                      <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
-                    </div>
-                  } />
-                  <Route path="/utilities" element={<UtilitiesPage />} />
-                  <Route path="/overtimes" element={<OvertimesPage />} />
-                  <Route path="/components" element={<ComponentsPage />} />
-                  <Route path="/admin/users" element={<UserManagement />} />
-                </Routes>
-              </Layout>
-            </ProtectedRoute>
-          } />
-        </Routes>
-      </DeveloperOptionsProvider>
-    </ThemeProvider>
-  );
+  return <EscapeRoomTypeGrid onSelectType={onSelectType} onBack={onBack} onSelectRoom={onSelectRoom} />;
 }
 
 // Wrapper components to handle URL parameters
@@ -178,11 +154,58 @@ function RoomInfoWrapper() {
 }
 
 function App() {
+  const { initialize, initialized } = useAuthStore();
+
+  useEffect(() => {
+    if (!initialized) {
+      initialize();
+    }
+  }, [initialize, initialized]);
+
   return (
     <Router>
-      <AppContent />
+      <ThemeProvider>
+        <DeveloperOptionsProvider>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+
+            {/* Protected Routes */}
+            <Route 
+              path="/*" 
+              element={
+                <ProtectedRoute>
+                  <AppContent />
+                </ProtectedRoute>
+              } 
+            >
+              {/* Dashboard */}
+              <Route index element={<HomePageWrapper />} />
+
+              {/* Room Flow */}
+              <Route path="room" element={<EscapeRoomTypeGridWrapper />} />
+              <Route path="room/:typeId" element={<CountryGridWrapper />} />
+              <Route path="room/:typeId/:country" element={<CityGridWrapper />} />
+              <Route path="room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
+              <Route path="room/:typeId/:country/:city/:roomName" element={<RoomInfoWrapper />} />
+
+              {/* Other Pages */}
+              <Route path="guides" element={
+                <div className="p-8">
+                  <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
+                  <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
+                </div>
+              } />
+              <Route path="utilities" element={<UtilitiesPage />} />
+              <Route path="overtimes" element={<OvertimesPage />} />
+              <Route path="components" element={<ComponentsPage />} />
+              <Route path="admin/users" element={<UserManagement />} />
+            </Route>
+          </Routes>
+        </DeveloperOptionsProvider>
+      </ThemeProvider>
     </Router>
   );
 }
 
-export default App
+export default App;
