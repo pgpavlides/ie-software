@@ -24,51 +24,65 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       name: 'Dashboard', 
       view: 'dashboard',
       iconPath: '/icons/Dashboard.svg',
-      emoji: '🏠'
+      emoji: '🏠',
+      excludeRoles: ['Architect', 'Project Manager']
     },
     { 
       name: 'Room', 
       view: 'room',
       iconPath: '/icons/RANDOM_GENERATE.svg',
-      emoji: '🏠'
+      emoji: '🏠',
+      excludeRoles: ['Architect', 'Project Manager']
     },
     { 
       name: 'Guides', 
       view: 'guides',
       iconPath: '/icons/BOX.svg',
-      emoji: '📚'
+      emoji: '📚',
+      excludeRoles: ['Architect', 'Project Manager']
     },
     { 
       name: 'Utilities', 
       view: 'utilities',
       iconPath: '/icons/DEV_TOOLS.svg',
-      emoji: '🛠️'
+      emoji: '🛠️',
+      excludeRoles: ['Architect', 'Project Manager']
     },
     { 
       name: 'Overtimes', 
       view: 'overtimes',
       iconPath: '/icons/HUMAN.svg',
-      emoji: '⏰'
+      emoji: '⏰',
+      excludeRoles: ['Architect', 'Project Manager']
     },
     { 
       name: 'Components', 
       view: 'components',
       iconPath: '/icons/BOX.svg',
-      emoji: '🧩'
+      emoji: '🧩',
+      excludeRoles: ['Architect', 'Project Manager']
     },
     { 
       name: 'MAP', 
       view: 'map',
       iconPath: '/icons/Dashboard.svg',
       emoji: '🗺️',
-      roles: ['Architect', 'Project Manager']
+      roles: ['Admin', 'Architect', 'Project Manager']
     }
   ];
 
   const menuItems = allMenuItems.filter(item => {
+    // Check if user should be excluded from this menu item
+    if (item.excludeRoles) {
+      const isExcluded = item.excludeRoles.some(role => hasRole(role));
+      if (isExcluded) return false;
+    }
+    
+    // Check if user has required roles for this menu item
     if (item.roles) {
       return item.roles.some(role => hasRole(role));
     }
+    
     return true;
   });
 
