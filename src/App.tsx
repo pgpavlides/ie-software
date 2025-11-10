@@ -9,6 +9,7 @@ import RoomInfo from './components/RoomInfo';
 import UtilitiesPage from './components/UtilitiesPage';
 import OvertimesPage from './components/OvertimesPage';
 import ComponentsPage from './components/ComponentsPage';
+import MapPage from './components/MapPage';
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/auth/Login';
@@ -17,7 +18,7 @@ import UserManagement from './components/admin/UserManagement';
 import { useAuthStore } from './store/authStore';
 import { useEffect } from 'react';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map';
 
 // Router-aware components
 function AppContent() {
@@ -31,6 +32,7 @@ function AppContent() {
     if (location.pathname.startsWith('/utilities')) return 'utilities';
     if (location.pathname.startsWith('/overtimes')) return 'overtimes';
     if (location.pathname.startsWith('/components')) return 'components';
+    if (location.pathname.startsWith('/map')) return 'map';
     return 'dashboard';
   };
 
@@ -53,6 +55,9 @@ function AppContent() {
         break;
       case 'components':
         navigate('/components');
+        break;
+      case 'map':
+        navigate('/map');
         break;
     }
   };
@@ -199,6 +204,7 @@ function App() {
               <Route path="utilities" element={<UtilitiesPage />} />
               <Route path="overtimes" element={<OvertimesPage />} />
               <Route path="components" element={<ComponentsPage />} />
+              <Route path="map" element={<MapPage />} />
               <Route path="admin/users" element={<UserManagement />} />
             </Route>
           </Routes>

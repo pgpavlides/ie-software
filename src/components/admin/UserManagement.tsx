@@ -32,29 +32,20 @@ export default function UserManagement() {
     try {
       setLoading(true);
 
-      // Get all users from auth.users (requires admin rights)
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      // Use the custom function instead of admin API
+      const { data: usersData, error } = await supabase.rpc('get_all_users_with_roles');
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      // Get user roles
-      const usersWithRoles = await Promise.all(
-        authUsers.users.map(async (user: any) => {
-          const { data: userRoles } = await supabase.rpc('get_user_roles', {
-            user_id: user.id,
-          });
+      const formattedUsers = usersData?.map((user: any) => ({
+        id: user.user_id,
+        email: user.email || '',
+        full_name: user.full_name || 'N/A',
+        created_at: user.created_at,
+        roles: user.role_names || [],
+      })) || [];
 
-          return {
-            id: user.id,
-            email: user.email || '',
-            full_name: user.user_metadata?.full_name || 'N/A',
-            created_at: user.created_at,
-            roles: userRoles?.map((r: any) => r.role_name) || [],
-          };
-        })
-      );
-
-      setUsers(usersWithRoles);
+      setUsers(formattedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -122,6 +113,8 @@ export default function UserManagement() {
         return 'bg-green-100 text-green-800 border-green-200';
       case 'Project Manager':
         return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'Architect':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }

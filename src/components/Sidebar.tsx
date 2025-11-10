@@ -17,7 +17,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
   const [open, setOpen] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
-  const { user, signOut } = useAuthStore();
+  const { user, signOut, hasRole } = useAuthStore();
 
   const allMenuItems = [
     { 
@@ -55,10 +55,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       view: 'components',
       iconPath: '/icons/BOX.svg',
       emoji: '🧩'
+    },
+    { 
+      name: 'MAP', 
+      view: 'map',
+      iconPath: '/icons/Dashboard.svg',
+      emoji: '🗺️',
+      roles: ['Architect', 'Project Manager']
     }
   ];
 
-  const menuItems = allMenuItems;
+  const menuItems = allMenuItems.filter(item => {
+    if (item.roles) {
+      return item.roles.some(role => hasRole(role));
+    }
+    return true;
+  });
 
   return (
     <motion.nav
