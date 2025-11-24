@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
 
         // Listen for auth changes (only once)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
           console.log('Auth state change:', event);
           
           // CRITICAL: Do not trigger state changes for tab switching events
