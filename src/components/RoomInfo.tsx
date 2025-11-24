@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { getRoom, getCityWithRooms, type RoomEntry, type CityData } from '../services/supabaseQueries';
 import supabase from '../lib/supabase';
 
@@ -9,7 +9,7 @@ interface RoomInfoProps {
   onBack: () => void;
 }
 
-export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack }: RoomInfoProps) {
+function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack }: RoomInfoProps) {
   const [room, setRoom] = useState<RoomEntry | null>(null);
   const [city, setCity] = useState<CityData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,26 +30,20 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
     async function fetchData() {
       if (isCancelled) return;
       
-      console.log(`RoomInfo: Starting fetchData for ${roomName} in ${cityName}`);
-      
       // Check for cached data first
       const cacheKey = `room_data_${cityName}_${escapeRoomTypeId}_${roomName}`;
       const cacheTimeKey = `room_data_${cityName}_${escapeRoomTypeId}_${roomName}_time`;
       const cached = sessionStorage.getItem(cacheKey);
       const cacheTime = sessionStorage.getItem(cacheTimeKey);
       
-      console.log(`RoomInfo: Cache check - cached: ${!!cached}, cacheTime: ${cacheTime}`);
-      
       // Use cache if it's less than 5 minutes old
       if (cached && cacheTime && !isCancelled) {
         const age = Date.now() - parseInt(cacheTime);
-        console.log(`RoomInfo: Cache age: ${age}ms (${Math.round(age / 1000)}s)`);
         
         if (age < 5 * 60 * 1000) { // 5 minutes
           try {
             const cachedData = JSON.parse(cached);
             if (cachedData.room && cachedData.city) {
-              console.log(`RoomInfo: Using cached data for room ${roomName} in ${cityName}`);
               setRoom(cachedData.room);
               setCity(cachedData.city);
               
@@ -64,22 +58,16 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
               }
               
               setLoading(false);
+              console.log(`Using cached data for room ${roomName} in ${cityName}`);
               return;
-            } else {
-              console.log('RoomInfo: Cache data incomplete, fetching fresh data');
             }
           } catch (error) {
             console.error('Error parsing cached room data:', error);
           }
-        } else {
-          console.log('RoomInfo: Cache expired, fetching fresh data');
         }
-      } else {
-        console.log('RoomInfo: No cache found, fetching fresh data');
       }
       
       if (isCancelled) return;
-      console.log('RoomInfo: Setting loading to true, fetching from API...');
       setLoading(true);
       
       try {
@@ -87,8 +75,6 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
           getRoom(cityName, escapeRoomTypeId, roomName),
           getCityWithRooms(cityName, escapeRoomTypeId)
         ]);
-        
-        console.log('RoomInfo: API call completed', { roomData: !!roomData, cityData: !!cityData });
         
         if (!isCancelled) {
           setRoom(roomData);
@@ -110,12 +96,8 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
               room: roomData,
               city: cityData
             };
-            console.log(`RoomInfo: Caching data with key: ${cacheKey}`, dataToCache);
             sessionStorage.setItem(cacheKey, JSON.stringify(dataToCache));
             sessionStorage.setItem(cacheTimeKey, Date.now().toString());
-            console.log('RoomInfo: Cache saved successfully');
-          } else {
-            console.log('RoomInfo: Not caching - missing data', { roomData: !!roomData, cityData: !!cityData });
           }
         }
       } catch (error) {
@@ -583,3 +565,5 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
     </div>
   );
 }
+
+export default memo(RoomInfo);

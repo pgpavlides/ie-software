@@ -53,12 +53,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
         // Listen for auth changes (only once)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           console.log('Auth state change:', event);
-          if (session?.user) {
-            set({ user: session.user, session });
-            await get().fetchUserRoles();
-          } else {
+          
+          // CRITICAL: Do not trigger state changes for tab switching events
+          // Only respond to actual logout events  
+          if (event === 'SIGNED_OUT') {
             set({ user: null, session: null, roles: [] });
           }
+          // Ignore all other events (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED)
+          // These events fire when tabs become visible and cause unnecessary remounts
         });
 
         authListenerUnsubscribe = () => subscription?.unsubscribe();

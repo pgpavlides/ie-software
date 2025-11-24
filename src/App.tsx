@@ -172,6 +172,7 @@ function RoomInfoWrapper() {
 function App() {
   const { initialize, initialized, loading } = useAuthStore();
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
     if (!initialized && !hasInitialized) {
@@ -180,8 +181,15 @@ function App() {
     }
   }, [initialize, initialized, hasInitialized]);
 
-  // Show loading while auth is initializing
-  if (loading && !initialized) {
+  // Mark app as ready once auth is initialized
+  useEffect(() => {
+    if (initialized && !appReady) {
+      setAppReady(true);
+    }
+  }, [initialized, appReady]);
+
+  // Only show loading on very first initialization, not on auth events
+  if (!appReady && loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
