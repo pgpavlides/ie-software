@@ -23,7 +23,7 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   const [filteredRooms, setFilteredRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [isTabVisible, setIsTabVisible] = useState(!document.hidden);
-  const { user, roles, isAdmin } = useAuthStore();
+  const { isAdmin } = useAuthStore();
   
   // Fetch data on mount
   useEffect(() => {
