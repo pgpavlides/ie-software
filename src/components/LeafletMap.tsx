@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPencilAlt, FaSearch, FaList, FaMap, FaSave, FaTimes } from 'react-icons/fa';
+import { FaPencilAlt, FaSearch, FaList, FaMap, FaSave, FaTimes, FaMousePointer, FaPalette } from 'react-icons/fa';
 import { MapContainer, ImageOverlay, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -211,6 +211,80 @@ const MapClickHandler: React.FC<{
   return null;
 };
 
+// Bottom Navbar Component for Map Tools
+const MapToolbar: React.FC<{ 
+  canEdit: boolean; 
+  selectedTool: string; 
+  onToolChange: (tool: string) => void;
+}> = ({ canEdit, selectedTool, onToolChange }) => {
+
+  const tools = [
+    { id: 'select', icon: FaMousePointer, label: 'Select', enabled: true },
+    { id: 'marker', icon: FaPencilAlt, label: 'Add Marker', enabled: canEdit },
+    { id: 'style', icon: FaPalette, label: 'Style', enabled: canEdit },
+  ];
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[1000]">
+      <div className="flex items-center justify-center px-4 py-3">
+        <div className="flex space-x-1 bg-black/20 backdrop-blur-sm rounded-lg p-1 border border-white/20">
+          {tools.map((tool) => (
+            <button
+              key={tool.id}
+              onClick={() => tool.enabled && onToolChange(tool.id)}
+              disabled={!tool.enabled}
+              className={`
+                flex flex-col items-center justify-center px-4 py-2 rounded-md min-w-[70px] transition-all duration-200
+                ${selectedTool === tool.id
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : tool.enabled
+                  ? 'text-white hover:bg-white/20 hover:text-blue-200'
+                  : 'text-white/40 cursor-not-allowed opacity-50'
+                }
+              `}
+              title={tool.enabled ? tool.label : `${tool.label} (Admin only)`}
+            >
+              <tool.icon className="text-lg mb-1" />
+              <span className="text-xs font-medium">{tool.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Tool Status/Info Bar */}
+      <div className="bg-black/30 backdrop-blur-sm px-4 py-2 border-t border-white/10">
+        <div className="flex items-center justify-between text-sm text-white">
+          <div className="flex items-center space-x-4">
+            <span>
+              <strong>Current Tool:</strong> {tools.find(t => t.id === selectedTool)?.label}
+            </span>
+            {selectedTool === 'select' && (
+              <span className="text-blue-300">Click on markers to open links</span>
+            )}
+            {selectedTool === 'marker' && canEdit && (
+              <span className="text-green-300">Click on map to add new markers</span>
+            )}
+            {selectedTool === 'style' && canEdit && (
+              <span className="text-orange-300">Customize marker colors and appearance</span>
+            )}
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            {canEdit && (
+              <span className="text-xs bg-green-500/30 text-green-200 px-2 py-1 rounded border border-green-400/30">
+                Edit Mode
+              </span>
+            )}
+            <span className="text-xs bg-white/20 text-white/80 px-2 py-1 rounded border border-white/20">
+              Zoom: Auto
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const LeafletMap: React.FC = () => {
   const [mapBoxes, setMapBoxes] = useState<MapBox[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -219,6 +293,7 @@ const LeafletMap: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showListView, setShowListView] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTool, setSelectedTool] = useState<string>('select');
   
   const { hasRole, user } = useAuthStore();
   const canEdit = hasRole('Admin') || hasRole('Architect') || hasRole('Project Manager');
@@ -258,7 +333,8 @@ const LeafletMap: React.FC = () => {
   };
 
   const handleMapClick = (lat: number, lng: number) => {
-    if (!canEdit) return;
+    // Only allow adding markers in 'marker' mode
+    if (!canEdit || selectedTool !== 'marker') return;
     
     setClickPosition({ lat, lng });
     setEditingBox(null);
@@ -266,13 +342,12 @@ const LeafletMap: React.FC = () => {
   };
 
   const handleMarkerClick = (box: MapBox) => {
-    if (canEdit) {
-      setEditingBox(box);
-      setClickPosition({ lat: box.y_position, lng: box.x_position });
-      setIsModalOpen(true);
-    } else {
+    if (selectedTool === 'select') {
+      // In select mode, just open the link
       window.open(box.link_url, '_blank');
     }
+    // In marker mode, the popup will show with edit/delete buttons
+    // Modal opening is handled by the Edit button in the popup
   };
 
   const handleSaveBox = async (boxData: Omit<MapBox, 'id' | 'created_by'>) => {
@@ -412,7 +487,7 @@ const LeafletMap: React.FC = () => {
                         </a>
                       </div>
                     </div>
-                    {canEdit && (
+                    {canEdit && selectedTool === 'marker' && (
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleMarkerClick(box)}
@@ -451,7 +526,7 @@ const LeafletMap: React.FC = () => {
           />
 
           {/* Map Click Handler */}
-          <MapClickHandler onMapClick={handleMapClick} canEdit={canEdit} />
+          <MapClickHandler onMapClick={handleMapClick} canEdit={canEdit && selectedTool === 'marker'} />
 
           {/* Location Markers */}
           {mapBoxes.map((box) => (
@@ -460,36 +535,32 @@ const LeafletMap: React.FC = () => {
               position={[box.y_position, box.x_position]}
               icon={createCustomIcon(box.color, box.name)}
               eventHandlers={{
-                click: () => {
-                  if (canEdit) {
-                    handleMarkerClick(box);
-                  } else {
-                    window.open(box.link_url, '_blank');
-                  }
-                },
+                click: () => handleMarkerClick(box),
               }}
             >
-              <Popup>
-                <div className="p-2">
-                  <h3 className="font-bold text-gray-900">{box.name}</h3>
-                  {box.description && (
-                    <p className="text-sm text-gray-600 mt-1">{box.description}</p>
-                  )}
-                  <div className="mt-2 space-y-1">
-                    <a
-                      href={box.link_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      Visit Link →
-                    </a>
-                    {canEdit && (
+              {selectedTool === 'marker' && canEdit && (
+                <Popup>
+                  <div className="p-2">
+                    <h3 className="font-bold text-gray-900">{box.name}</h3>
+                    {box.description && (
+                      <p className="text-sm text-gray-600 mt-1">{box.description}</p>
+                    )}
+                    <div className="mt-2 space-y-1">
+                      <a
+                        href={box.link_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Visit Link →
+                      </a>
                       <div className="flex space-x-2 mt-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleMarkerClick(box);
+                            setEditingBox(box);
+                            setClickPosition({ lat: box.y_position, lng: box.x_position });
+                            setIsModalOpen(true);
                           }}
                           className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
                         >
@@ -505,10 +576,10 @@ const LeafletMap: React.FC = () => {
                           Delete
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </Popup>
+                </Popup>
+              )}
             </Marker>
           ))}
         </MapContainer>
@@ -526,6 +597,9 @@ const LeafletMap: React.FC = () => {
         editingBox={editingBox}
         position={clickPosition}
       />
+
+      {/* Bottom Toolbar */}
+      <MapToolbar canEdit={canEdit} selectedTool={selectedTool} onToolChange={setSelectedTool} />
     </div>
   );
 };
