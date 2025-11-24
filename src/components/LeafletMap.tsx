@@ -499,6 +499,9 @@ const LeafletMap: React.FC = () => {
   };
 
   const handleMapClick = (lat: number, lng: number) => {
+    // Close any open popup when clicking on map
+    setActivePopup(null);
+    
     // If in move mode, update the position and save immediately
     if (isInMoveMode && editingBox) {
       const updatedBox = {
@@ -523,7 +526,6 @@ const LeafletMap: React.FC = () => {
       
       setIsInMoveMode(false);
       setEditingBox(null);
-      setActivePopup(null);
       return;
     }
     
@@ -780,7 +782,6 @@ const LeafletMap: React.FC = () => {
               )}
               {selectedTool === 'marker' && canEdit && activePopup === box.id && (
                 <Popup
-                  onClose={() => setActivePopup(null)}
                   closeOnClick={false}
                   autoClose={false}
                 >
