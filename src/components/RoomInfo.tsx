@@ -25,28 +25,96 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+    
     async function fetchData() {
-      setLoading(true);
-      const [roomData, cityData] = await Promise.all([
-        getRoom(cityName, escapeRoomTypeId, roomName),
-        getCityWithRooms(cityName, escapeRoomTypeId)
-      ]);
-      setRoom(roomData);
-      setCity(cityData);
-
-      // Initialize edit form with room data
-      if (roomData) {
-        setEditForm({
-          name: roomData.name,
-          anydesk: roomData.anydesk,
-          ip: roomData.ip || '',
-          notes: roomData.notes || ''
-        });
+      if (isCancelled) return;
+      
+      // Check for cached data first
+      const cacheKey = `room_data_${cityName}_${escapeRoomTypeId}_${roomName}`;
+      const cacheTimeKey = `room_data_${cityName}_${escapeRoomTypeId}_${roomName}_time`;
+      const cached = sessionStorage.getItem(cacheKey);
+      const cacheTime = sessionStorage.getItem(cacheTimeKey);
+      
+      // Use cache if it's less than 5 minutes old
+      if (cached && cacheTime && !isCancelled) {
+        const age = Date.now() - parseInt(cacheTime);
+        if (age < 5 * 60 * 1000) { // 5 minutes
+          try {
+            const cachedData = JSON.parse(cached);
+            if (cachedData.room && cachedData.city) {
+              setRoom(cachedData.room);
+              setCity(cachedData.city);
+              
+              // Initialize edit form with cached room data
+              if (cachedData.room) {
+                setEditForm({
+                  name: cachedData.room.name,
+                  anydesk: cachedData.room.anydesk,
+                  ip: cachedData.room.ip || '',
+                  notes: cachedData.room.notes || ''
+                });
+              }
+              
+              setLoading(false);
+              console.log(`Using cached data for room ${roomName} in ${cityName}`);
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing cached room data:', error);
+          }
+        }
       }
+      
+      if (isCancelled) return;
+      setLoading(true);
+      
+      try {
+        const [roomData, cityData] = await Promise.all([
+          getRoom(cityName, escapeRoomTypeId, roomName),
+          getCityWithRooms(cityName, escapeRoomTypeId)
+        ]);
+        
+        if (!isCancelled) {
+          setRoom(roomData);
+          setCity(cityData);
 
-      setLoading(false);
+          // Initialize edit form with room data
+          if (roomData) {
+            setEditForm({
+              name: roomData.name,
+              anydesk: roomData.anydesk,
+              ip: roomData.ip || '',
+              notes: roomData.notes || ''
+            });
+          }
+          
+          // Cache the results
+          if (roomData && cityData) {
+            const dataToCache = {
+              room: roomData,
+              city: cityData
+            };
+            sessionStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+            sessionStorage.setItem(cacheTimeKey, Date.now().toString());
+          }
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Error fetching room data:', error);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
+    
     fetchData();
+    
+    return () => {
+      isCancelled = true;
+    };
   }, [cityName, escapeRoomTypeId, roomName]);
 
   if (loading) {

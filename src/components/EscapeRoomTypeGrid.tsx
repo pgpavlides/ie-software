@@ -19,19 +19,47 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTabVisible, setIsTabVisible] = useState(!document.hidden);
 
-  // Fetch escape room types on mount
+  // Fetch escape room types on mount with caching
   useEffect(() => {
     let isCancelled = false;
     
     const fetchTypes = async () => {
       if (isCancelled) return;
       
+      // Check for cached data first
+      const cacheKey = 'escape_room_types_cache';
+      const cacheTimeKey = 'escape_room_types_cache_time';
+      const cached = sessionStorage.getItem(cacheKey);
+      const cacheTime = sessionStorage.getItem(cacheTimeKey);
+      
+      // Use cache if it's less than 5 minutes old
+      if (cached && cacheTime) {
+        const age = Date.now() - parseInt(cacheTime);
+        if (age < 5 * 60 * 1000) { // 5 minutes
+          try {
+            const cachedTypes = JSON.parse(cached);
+            if (!isCancelled) {
+              setEscapeRoomTypes(cachedTypes);
+              setLoading(false);
+              console.log('Using cached escape room types');
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing cached data:', error);
+          }
+        }
+      }
+      
       setLoading(true);
       try {
         const types = await getEscapeRoomTypes();
         if (!isCancelled) {
           setEscapeRoomTypes(types);
+          // Cache the results
+          sessionStorage.setItem(cacheKey, JSON.stringify(types));
+          sessionStorage.setItem(cacheTimeKey, Date.now().toString());
         }
       } catch (err) {
         if (!isCancelled) {
@@ -51,11 +79,26 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
     };
   }, []);
 
-  const fetchTypes = async () => {
+  // Handle tab visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  const refreshTypes = async () => {
     setLoading(true);
     try {
       const types = await getEscapeRoomTypes();
       setEscapeRoomTypes(types);
+      // Update cache
+      sessionStorage.setItem('escape_room_types_cache', JSON.stringify(types));
+      sessionStorage.setItem('escape_room_types_cache_time', Date.now().toString());
     } catch (err) {
       console.error('Error fetching escape room types:', err);
     } finally {
@@ -65,10 +108,10 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
 
   const handleRoomAdded = () => {
     // Refresh the data after a room is added
-    fetchTypes();
+    refreshTypes();
   };
 
-  // Search types and rooms when query changes
+  // Search types and rooms when query changes (only when tab is visible)
   useEffect(() => {
     let isCancelled = false;
     
@@ -79,7 +122,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
         return;
       }
 
-      if (isCancelled) return;
+      if (isCancelled || !isTabVisible) return;
       
       setSearching(true);
       try {
@@ -122,7 +165,7 @@ export default function EscapeRoomTypeGrid({ onSelectType, onBack, onSelectRoom 
       isCancelled = true;
       clearTimeout(debounce);
     };
-  }, [searchQuery, escapeRoomTypes]);
+  }, [searchQuery, escapeRoomTypes, isTabVisible]);
   
   // Auto-focus search input when component mounts
   useEffect(() => {

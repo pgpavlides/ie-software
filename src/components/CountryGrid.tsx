@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { getCountriesByType, getAllCitiesByType, type EscapeRoomType, type RoomEntry } from '../services/supabaseQueries';
+import { useAuthStore } from '../store/authStore';
 import supabase from '../lib/supabase';
 
 interface CountryGridProps {
@@ -7,9 +8,10 @@ interface CountryGridProps {
   onSelectCountry: (country: string) => void;
   onBack: () => void;
   onSelectRoom?: (cityName: string, roomName: string) => void;
+  onManageCountries?: () => void;
 }
 
-export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack, onSelectRoom }: CountryGridProps) {
+export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack, onSelectRoom, onManageCountries }: CountryGridProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -20,6 +22,8 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   const [allRooms, setAllRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
   const [filteredRooms, setFilteredRooms] = useState<Array<RoomEntry & { cityName: string; country: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [isTabVisible, setIsTabVisible] = useState(!document.hidden);
+  const { user, roles, isAdmin } = useAuthStore();
   
   // Fetch data on mount
   useEffect(() => {
@@ -27,6 +31,32 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     
     async function fetchData() {
       if (isCancelled) return;
+      
+      // Check for cached data first
+      const cacheKey = `country_data_${escapeRoomTypeId}`;
+      const cacheTimeKey = `country_data_${escapeRoomTypeId}_time`;
+      const cached = sessionStorage.getItem(cacheKey);
+      const cacheTime = sessionStorage.getItem(cacheTimeKey);
+      
+      // Use cache if it's less than 5 minutes old
+      if (cached && cacheTime) {
+        const age = Date.now() - parseInt(cacheTime);
+        if (age < 5 * 60 * 1000) { // 5 minutes
+          try {
+            const cachedData = JSON.parse(cached);
+            if (!isCancelled && cachedData.countries && cachedData.escapeRoomType) {
+              setCountries(cachedData.countries);
+              setEscapeRoomType(cachedData.escapeRoomType);
+              setAllRooms(cachedData.allRooms || []);
+              setLoading(false);
+              console.log(`Using cached data for escape room type ${escapeRoomTypeId}`);
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing cached country data:', error);
+          }
+        }
+      }
       
       setLoading(true);
       let retryCount = 0;
@@ -63,6 +93,15 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
           });
           setAllRooms(rooms);
           
+          // Cache the results
+          const dataToCache = {
+            countries: countriesData,
+            escapeRoomType: typeData.data,
+            allRooms: rooms
+          };
+          sessionStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+          sessionStorage.setItem(cacheTimeKey, Date.now().toString());
+          
           console.log(`Loaded ${countriesData.length} countries and ${rooms.length} rooms for escape room type ${escapeRoomTypeId}`);
           break; // Success, exit retry loop
         } catch (err) {
@@ -96,6 +135,18 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     };
   }, [escapeRoomTypeId]);
 
+  // Handle tab visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   // Auto-focus search input when component mounts
   useEffect(() => {
     if (searchInputRef.current) {
@@ -121,10 +172,10 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     setSelectedIndex(-1);
   }, [searchQuery]);
 
-  // Filter countries and rooms based on search query
+  // Filter countries and rooms based on search query (only when tab is visible)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (!searchQuery.trim()) {
+      if (!searchQuery.trim() || !isTabVisible) {
         setFilteredCountries([]);
         setFilteredRooms([]);
         return;
@@ -160,7 +211,7 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     }, 150); // Debounce search to avoid excessive filtering
 
     return () => clearTimeout(timeoutId);
-  }, [allRooms, searchQuery, countries]);
+  }, [allRooms, searchQuery, countries, isTabVisible]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -176,7 +227,9 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
   }, [selectedIndex]);
 
   const getCountryFlag = (country: string): string => {
-    const flagMap: Record<string, string> = {
+    // Load saved flag mappings from localStorage
+    const savedMappings = localStorage.getItem('countryFlagMappings');
+    let flagMap: Record<string, string> = {
       'Germany': '/flags/de.svg',
       'Greece': '/flags/gr.svg', 
       'USA': '/flags/us.svg',
@@ -192,6 +245,16 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
       'Kenya': '/flags/ke.svg',
       'Slovakia': '/flags/sk.svg'
     };
+
+    if (savedMappings) {
+      try {
+        const parsed = JSON.parse(savedMappings);
+        flagMap = { ...flagMap, ...parsed };
+      } catch (error) {
+        console.error('Error parsing saved flag mappings:', error);
+      }
+    }
+
     return flagMap[country] || '/flags/xx.svg';
   };
 
@@ -305,13 +368,27 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
     <div className="min-h-full p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
-          <button 
-            onClick={onBack}
-            className="mb-4 flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-          >
-            <span className="mr-2">←</span>
-            Back to Escape Room Types
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button 
+              onClick={onBack}
+              className="flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+            >
+              <span className="mr-2">←</span>
+              Back to Escape Room Types
+            </button>
+            
+            {isAdmin() && onManageCountries && (
+              <button
+                onClick={onManageCountries}
+                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Manage Countries
+              </button>
+            )}
+          </div>
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
             {escapeRoomType?.name} - Countries
           </h1>

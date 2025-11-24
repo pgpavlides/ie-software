@@ -23,39 +23,51 @@ interface AuthState {
   initialize: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  session: null,
-  roles: [],
-  loading: true,
-  initialized: false,
+export const useAuthStore = create<AuthState>((set, get) => {
+  let authListenerUnsubscribe: (() => void) | null = null;
+  
+  return {
+    user: null,
+    session: null,
+    roles: [],
+    loading: true,
+    initialized: false,
 
-  initialize: async () => {
-    try {
-      // Get current session
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        set({ user: session.user, session });
-        await get().fetchUserRoles();
+    initialize: async () => {
+      // Prevent multiple initializations
+      if (get().initialized || authListenerUnsubscribe) {
+        return;
       }
 
-      // Listen for auth changes
-      supabase.auth.onAuthStateChange(async (_event, session) => {
+      try {
+        set({ loading: true });
+        
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession();
+
         if (session?.user) {
           set({ user: session.user, session });
           await get().fetchUserRoles();
-        } else {
-          set({ user: null, session: null, roles: [] });
         }
-      });
 
-      set({ loading: false, initialized: true });
-    } catch (error) {
-      console.error('Error initializing auth:', error);
-      set({ loading: false, initialized: true });
-    }
-  },
+        // Listen for auth changes (only once)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('Auth state change:', event);
+          if (session?.user) {
+            set({ user: session.user, session });
+            await get().fetchUserRoles();
+          } else {
+            set({ user: null, session: null, roles: [] });
+          }
+        });
+
+        authListenerUnsubscribe = () => subscription?.unsubscribe();
+        set({ loading: false, initialized: true });
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        set({ loading: false, initialized: true });
+      }
+    },
 
   signIn: async (email: string, password: string) => {
     set({ loading: true });
@@ -146,12 +158,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  hasRole: (roleName: string) => {
-    const { roles } = get();
-    return roles.includes(roleName);
-  },
+    hasRole: (roleName: string) => {
+      const { roles } = get();
+      return roles.includes(roleName);
+    },
 
-  isAdmin: () => {
-    return get().hasRole('Admin');
-  },
-}));
+    isAdmin: () => {
+      return get().hasRole('Admin');
+    },
+  };
+});

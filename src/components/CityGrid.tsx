@@ -27,6 +27,31 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
     async function fetchCities() {
       if (isCancelled) return;
       
+      // Check for cached data first
+      const cacheKey = `cities_data_${country}_${escapeRoomTypeId}`;
+      const cacheTimeKey = `cities_data_${country}_${escapeRoomTypeId}_time`;
+      const cached = sessionStorage.getItem(cacheKey);
+      const cacheTime = sessionStorage.getItem(cacheTimeKey);
+      
+      // Use cache if it's less than 5 minutes old
+      if (cached && cacheTime) {
+        const age = Date.now() - parseInt(cacheTime);
+        if (age < 5 * 60 * 1000) { // 5 minutes
+          try {
+            const cachedData = JSON.parse(cached);
+            if (!isCancelled) {
+              setCities(cachedData.cities);
+              setAllRooms(cachedData.allRooms || []);
+              setLoading(false);
+              console.log(`Using cached data for ${country} cities`);
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing cached cities data:', error);
+          }
+        }
+      }
+      
       setLoading(true);
       try {
         const citiesData = await getCitiesByCountryAndType(country, escapeRoomTypeId);
@@ -46,6 +71,14 @@ export default function CityGrid({ country, escapeRoomTypeId, onSelectCity, onBa
           });
         });
         setAllRooms(rooms);
+        
+        // Cache the results
+        const dataToCache = {
+          cities: citiesData,
+          allRooms: rooms
+        };
+        sessionStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+        sessionStorage.setItem(cacheTimeKey, Date.now().toString());
       } catch (err) {
         if (!isCancelled) {
           console.error('Error fetching cities:', err);

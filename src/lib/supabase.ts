@@ -19,18 +19,22 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   },
 });
 
-// Test connection on initialization
-(async () => {
-  try {
-    const { error } = await supabase.from('escape_room_types').select('count', { count: 'exact', head: true });
-    if (error) {
-      console.error('Supabase connection test failed:', error);
-    } else {
-      console.log('Supabase connection verified');
+// Test connection on initialization (only once)
+let connectionTested = false;
+if (!connectionTested) {
+  connectionTested = true;
+  (async () => {
+    try {
+      const { error } = await supabase.from('escape_room_types').select('count', { count: 'exact', head: true });
+      if (error) {
+        console.error('Supabase connection test failed:', error);
+      } else {
+        console.log('Supabase connection verified');
+      }
+    } catch (error) {
+      console.error('Failed to test Supabase connection:', error);
     }
-  } catch (error) {
-    console.error('Failed to test Supabase connection:', error);
-  }
-})();
+  })();
+}
 
 export default supabase;

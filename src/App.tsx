@@ -15,8 +15,9 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/auth/Login';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import UserManagement from './components/admin/UserManagement';
+import CountryManagement from './components/admin/CountryManagement';
 import { useAuthStore } from './store/authStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map';
 
@@ -101,6 +102,15 @@ function CountryGridWrapper() {
   const { typeId } = useParams<{ typeId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showCountryManagement, setShowCountryManagement] = useState(false);
+  
+  if (showCountryManagement) {
+    return (
+      <CountryManagement 
+        onBack={() => setShowCountryManagement(false)}
+      />
+    );
+  }
   
   return (
     <CountryGrid 
@@ -108,6 +118,7 @@ function CountryGridWrapper() {
       onSelectCountry={(country) => navigate(`/room/${typeId}/${encodeURIComponent(country)}${location.search}`)} 
       onBack={() => navigate(`/room${location.search}`)}
       onSelectRoom={(cityName, roomName) => navigate(`/room/${typeId}/${encodeURIComponent('Global Search')}/${encodeURIComponent(cityName)}/${encodeURIComponent(roomName)}${location.search}`)}
+      onManageCountries={() => setShowCountryManagement(true)}
     />
   );
 }
@@ -159,13 +170,27 @@ function RoomInfoWrapper() {
 }
 
 function App() {
-  const { initialize, initialized } = useAuthStore();
+  const { initialize, initialized, loading } = useAuthStore();
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
-    if (!initialized) {
+    if (!initialized && !hasInitialized) {
+      setHasInitialized(true);
       initialize();
     }
-  }, [initialize, initialized]);
+  }, [initialize, initialized, hasInitialized]);
+
+  // Show loading while auth is initializing
+  if (loading && !initialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -206,6 +231,9 @@ function App() {
               <Route path="components" element={<ComponentsPage />} />
               <Route path="map" element={<MapPage />} />
               <Route path="admin/users" element={<UserManagement />} />
+              <Route path="admin/countries" element={
+                <CountryManagement onBack={() => window.history.back()} />
+              } />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>

@@ -214,3 +214,85 @@ export async function getAllCitiesByType(typeId: string): Promise<CityData[]> {
 
   return data || [];
 }
+
+// Admin Functions for Country Management
+
+// Update country name across all cities
+export async function updateCountryName(oldName: string, newName: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('cities')
+      .update({ country: newName })
+      .eq('country', oldName);
+
+    if (error) {
+      console.error('Error updating country name:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error updating country name:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Get all unique countries
+export async function getAllCountries(): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('cities')
+      .select('country')
+      .order('country');
+
+    if (error) {
+      console.error('Error fetching all countries:', error);
+      return [];
+    }
+
+    // Get unique countries
+    const countries = [...new Set(data?.map(city => city.country) || [])];
+    return countries.sort();
+  } catch (error) {
+    console.error('Unexpected error fetching countries:', error);
+    return [];
+  }
+}
+
+// Get country usage stats
+export async function getCountryStats(country: string): Promise<{ cities: number; rooms: number }> {
+  try {
+    const { data: cities, error: citiesError } = await supabase
+      .from('cities')
+      .select('id')
+      .eq('country', country);
+
+    if (citiesError) {
+      console.error('Error fetching country stats:', citiesError);
+      return { cities: 0, rooms: 0 };
+    }
+
+    let totalRooms = 0;
+    if (cities && cities.length > 0) {
+      const cityIds = cities.map(city => city.id);
+      const { count: roomCount, error: roomsError } = await supabase
+        .from('rooms')
+        .select('id', { count: 'exact' })
+        .in('city_id', cityIds);
+
+      if (roomsError) {
+        console.error('Error fetching room count:', roomsError);
+      } else {
+        totalRooms = roomCount || 0;
+      }
+    }
+
+    return {
+      cities: cities?.length || 0,
+      rooms: totalRooms
+    };
+  } catch (error) {
+    console.error('Unexpected error fetching country stats:', error);
+    return { cities: 0, rooms: 0 };
+  }
+}

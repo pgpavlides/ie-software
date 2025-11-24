@@ -24,11 +24,40 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     async function fetchCity() {
       if (isCancelled) return;
       
+      // Check for cached data first
+      const cacheKey = `city_data_${cityName}_${escapeRoomTypeId}`;
+      const cacheTimeKey = `city_data_${cityName}_${escapeRoomTypeId}_time`;
+      const cached = sessionStorage.getItem(cacheKey);
+      const cacheTime = sessionStorage.getItem(cacheTimeKey);
+      
+      // Use cache if it's less than 5 minutes old
+      if (cached && cacheTime) {
+        const age = Date.now() - parseInt(cacheTime);
+        if (age < 5 * 60 * 1000) { // 5 minutes
+          try {
+            const cachedCity = JSON.parse(cached);
+            if (!isCancelled) {
+              setCity(cachedCity);
+              setLoading(false);
+              console.log(`Using cached data for city ${cityName}`);
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing cached city data:', error);
+          }
+        }
+      }
+      
       setLoading(true);
       try {
         const cityData = await getCityWithRooms(cityName, escapeRoomTypeId);
         if (!isCancelled) {
           setCity(cityData);
+          // Cache the results
+          if (cityData) {
+            sessionStorage.setItem(cacheKey, JSON.stringify(cityData));
+            sessionStorage.setItem(cacheTimeKey, Date.now().toString());
+          }
         }
       } catch (error) {
         if (!isCancelled) {
@@ -145,7 +174,9 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
   }
 
   const getCountryFlag = (country: string): string => {
-    const flagMap: Record<string, string> = {
+    // Load saved flag mappings from localStorage
+    const savedMappings = localStorage.getItem('countryFlagMappings');
+    let flagMap: Record<string, string> = {
       'Germany': '/flags/de.svg',
       'Greece': '/flags/gr.svg',
       'USA': '/flags/us.svg',
@@ -161,6 +192,16 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
       'Kenya': '/flags/ke.svg',
       'Slovakia': '/flags/sk.svg'
     };
+
+    if (savedMappings) {
+      try {
+        const parsed = JSON.parse(savedMappings);
+        flagMap = { ...flagMap, ...parsed };
+      } catch (error) {
+        console.error('Error parsing saved flag mappings:', error);
+      }
+    }
+
     return flagMap[country] || '/flags/xx.svg';
   };
 
