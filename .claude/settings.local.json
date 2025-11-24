@@ -9,7 +9,8 @@
       "Bash(npx supabase:*)",
       "Bash(cat:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }
