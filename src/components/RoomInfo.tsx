@@ -110,8 +110,12 @@ export default function RoomInfo({ cityName, escapeRoomTypeId, roomName, onBack 
               room: roomData,
               city: cityData
             };
+            console.log(`RoomInfo: Caching data with key: ${cacheKey}`, dataToCache);
             sessionStorage.setItem(cacheKey, JSON.stringify(dataToCache));
             sessionStorage.setItem(cacheTimeKey, Date.now().toString());
+            console.log('RoomInfo: Cache saved successfully');
+          } else {
+            console.log('RoomInfo: Not caching - missing data', { roomData: !!roomData, cityData: !!cityData });
           }
         }
       } catch (error) {
