@@ -19,13 +19,34 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
 
   // Fetch city data on mount
   useEffect(() => {
+    let isCancelled = false;
+    
     async function fetchCity() {
+      if (isCancelled) return;
+      
       setLoading(true);
-      const cityData = await getCityWithRooms(cityName, escapeRoomTypeId);
-      setCity(cityData);
-      setLoading(false);
+      try {
+        const cityData = await getCityWithRooms(cityName, escapeRoomTypeId);
+        if (!isCancelled) {
+          setCity(cityData);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Error fetching city data:', error);
+          setCity(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
+    
     fetchCity();
+    
+    return () => {
+      isCancelled = true;
+    };
   }, [cityName, escapeRoomTypeId]);
 
   // Auto-focus search input when data is loaded

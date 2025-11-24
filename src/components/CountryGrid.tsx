@@ -29,38 +29,63 @@ export default function CountryGrid({ escapeRoomTypeId, onSelectCountry, onBack,
       if (isCancelled) return;
       
       setLoading(true);
-      try {
-        const [countriesData, citiesData, typeData] = await Promise.all([
-          getCountriesByType(escapeRoomTypeId),
-          getAllCitiesByType(escapeRoomTypeId),
-          supabase.from('escape_room_types').select('*').eq('id', escapeRoomTypeId).single()
-        ]);
+      let retryCount = 0;
+      const maxRetries = 3;
 
-        if (isCancelled) return;
+      while (retryCount < maxRetries && !isCancelled) {
+        try {
+          const [countriesData, citiesData, typeData] = await Promise.all([
+            getCountriesByType(escapeRoomTypeId),
+            getAllCitiesByType(escapeRoomTypeId),
+            supabase.from('escape_room_types').select('*').eq('id', escapeRoomTypeId).single()
+          ]);
 
-        setCountries(countriesData);
-        setEscapeRoomType(typeData.data);
+          if (isCancelled) return;
 
-        // Build allRooms array from cities data
-        const rooms: Array<RoomEntry & { cityName: string; country: string }> = [];
-        citiesData.forEach(city => {
-          city.rooms?.forEach(room => {
-            rooms.push({
-              ...room,
-              cityName: city.name,
-              country: city.country
+          // Validate we got meaningful data
+          if (!typeData.data && retryCount < maxRetries - 1) {
+            throw new Error('No escape room type data received');
+          }
+
+          setCountries(countriesData);
+          setEscapeRoomType(typeData.data);
+
+          // Build allRooms array from cities data
+          const rooms: Array<RoomEntry & { cityName: string; country: string }> = [];
+          citiesData.forEach(city => {
+            city.rooms?.forEach(room => {
+              rooms.push({
+                ...room,
+                cityName: city.name,
+                country: city.country
+              });
             });
           });
-        });
-        setAllRooms(rooms);
-      } catch (err) {
-        if (!isCancelled) {
-          console.error('Error fetching data:', err);
+          setAllRooms(rooms);
+          
+          console.log(`Loaded ${countriesData.length} countries and ${rooms.length} rooms for escape room type ${escapeRoomTypeId}`);
+          break; // Success, exit retry loop
+        } catch (err) {
+          retryCount++;
+          console.error(`Error fetching data (attempt ${retryCount}/${maxRetries}):`, err);
+          
+          if (retryCount >= maxRetries) {
+            if (!isCancelled) {
+              console.error('Failed to fetch data after maximum retries');
+              // Set empty data to prevent infinite loading
+              setCountries([]);
+              setEscapeRoomType(null);
+              setAllRooms([]);
+            }
+          } else if (!isCancelled) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          }
         }
-      } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
+      }
+      
+      if (!isCancelled) {
+        setLoading(false);
       }
     }
     

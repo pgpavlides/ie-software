@@ -78,34 +78,66 @@ export async function getCitiesByCountryAndType(country: string, typeId: string)
 
 // Get a specific city with its rooms
 export async function getCityWithRooms(cityName: string, typeId: string): Promise<CityData | null> {
-  const { data: cityData, error: cityError } = await supabase
-    .from('cities')
-    .select('*')
-    .eq('name', cityName)
-    .eq('escape_room_type_id', typeId)
-    .single();
+  try {
+    const { data: cityData, error: cityError } = await supabase
+      .from('cities')
+      .select('*')
+      .eq('name', cityName)
+      .eq('escape_room_type_id', typeId)
+      .single();
 
-  if (cityError || !cityData) {
-    console.error('Error fetching city:', cityError);
+    if (cityError) {
+      console.error('Error fetching city:', cityError);
+      throw new Error(`Failed to fetch city: ${cityError.message}`);
+    }
+
+    if (!cityData) {
+      console.warn(`City not found: ${cityName} for type ${typeId}`);
+      return null;
+    }
+
+    // Fetch rooms for this city with retry logic
+    let retries = 3;
+    let roomsData = null;
+    
+    while (retries > 0) {
+      const { data, error: roomsError } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('city_id', cityData.id)
+        .order('name');
+
+      if (!roomsError) {
+        roomsData = data;
+        break;
+      }
+
+      console.error(`Error fetching rooms (attempt ${4 - retries}):`, roomsError);
+      retries--;
+      
+      if (retries > 0) {
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    if (retries === 0) {
+      console.error('Failed to fetch rooms after 3 attempts');
+      // Return city data without rooms rather than failing completely
+      return {
+        ...cityData,
+        rooms: [],
+      };
+    }
+
+    return {
+      ...cityData,
+      rooms: roomsData || [],
+    };
+  } catch (error) {
+    console.error('Unexpected error in getCityWithRooms:', error);
     return null;
   }
-
-  // Fetch rooms for this city
-  const { data: roomsData, error: roomsError } = await supabase
-    .from('rooms')
-    .select('*')
-    .eq('city_id', cityData.id)
-    .order('name');
-
-  if (roomsError) {
-    console.error('Error fetching rooms:', roomsError);
-    return cityData;
-  }
-
-  return {
-    ...cityData,
-    rooms: roomsData || [],
-  };
 }
 
 // Get a specific room
