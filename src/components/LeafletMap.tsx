@@ -220,15 +220,8 @@ const LeafletMap: React.FC = () => {
   const [showListView, setShowListView] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const { hasRole, user, roles } = useAuthStore();
+  const { hasRole, user } = useAuthStore();
   const canEdit = hasRole('Admin') || hasRole('Architect') || hasRole('Project Manager');
-  
-  // Debug: Show current user info
-  useEffect(() => {
-    console.log('Current user:', user?.email);
-    console.log('Current user roles:', roles);
-    console.log('Can edit:', canEdit);
-  }, [user, roles, canEdit]);
 
   // Default bounds for your company map - adjust these coordinates as needed
   const companyMapBounds: [[number, number], [number, number]] = [
@@ -284,49 +277,25 @@ const LeafletMap: React.FC = () => {
 
   const handleSaveBox = async (boxData: Omit<MapBox, 'id' | 'created_by'>) => {
     try {
-      console.log('Attempting to save box with data:', boxData);
-      console.log('User roles:', useAuthStore.getState().roles);
-      
       if (editingBox) {
         // Update existing box
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('map_boxes')
           .update(boxData)
-          .eq('id', editingBox.id)
-          .select();
+          .eq('id', editingBox.id);
 
-        console.log('Update response:', { data, error });
         if (error) throw error;
       } else {
         // Create new box - ensure created_by is set
-        const { user } = useAuthStore.getState();
         const insertData = {
           ...boxData,
           created_by: user?.id
         };
         
-        console.log('Inserting with data:', insertData);
-        
-        // Try with explicit fields that match DB schema
-        const dbInsertData = {
-          name: boxData.name,
-          description: boxData.description,
-          link_url: boxData.link_url,
-          x_position: boxData.x_position,
-          y_position: boxData.y_position,
-          width: boxData.width || 0.05,
-          height: boxData.height || 0.05,
-          color: boxData.color || '#3B82F6',
-          is_active: true
-        };
-        
-        console.log('DB Insert data:', dbInsertData);
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('map_boxes')
-          .insert([dbInsertData])
-          .select();
+          .insert([insertData]);
 
-        console.log('Insert response:', { data, error });
         if (error) throw error;
       }
 
@@ -336,8 +305,7 @@ const LeafletMap: React.FC = () => {
       setClickPosition(null);
     } catch (error) {
       console.error('Error saving box:', error);
-      console.error('Full error details:', JSON.stringify(error, null, 2));
-      alert(`Error saving location: ${error.message || 'Please try again.'}`);
+      alert('Error saving location. Please try again.');
     }
   };
 
@@ -476,74 +444,74 @@ const LeafletMap: React.FC = () => {
           style={{ height: '100vh', width: '100vw' }}
           className="leaflet-container"
         >
-            {/* Company Map Overlay */}
-            <ImageOverlay
-              url="/company_map.png"
-              bounds={companyMapBounds}
-            />
+          {/* Company Map Overlay */}
+          <ImageOverlay
+            url="/company_map.png"
+            bounds={companyMapBounds}
+          />
 
-            {/* Map Click Handler */}
-            <MapClickHandler onMapClick={handleMapClick} canEdit={canEdit} />
+          {/* Map Click Handler */}
+          <MapClickHandler onMapClick={handleMapClick} canEdit={canEdit} />
 
-            {/* Location Markers */}
-            {mapBoxes.map((box) => (
-              <Marker
-                key={box.id}
-                position={[box.y_position, box.x_position]}
-                icon={createCustomIcon(box.color, box.name)}
-                eventHandlers={{
-                  click: () => {
-                    if (canEdit) {
-                      handleMarkerClick(box);
-                    } else {
-                      window.open(box.link_url, '_blank');
-                    }
-                  },
-                }}
-              >
-                <Popup>
-                  <div className="p-2">
-                    <h3 className="font-bold text-gray-900">{box.name}</h3>
-                    {box.description && (
-                      <p className="text-sm text-gray-600 mt-1">{box.description}</p>
+          {/* Location Markers */}
+          {mapBoxes.map((box) => (
+            <Marker
+              key={box.id}
+              position={[box.y_position, box.x_position]}
+              icon={createCustomIcon(box.color, box.name)}
+              eventHandlers={{
+                click: () => {
+                  if (canEdit) {
+                    handleMarkerClick(box);
+                  } else {
+                    window.open(box.link_url, '_blank');
+                  }
+                },
+              }}
+            >
+              <Popup>
+                <div className="p-2">
+                  <h3 className="font-bold text-gray-900">{box.name}</h3>
+                  {box.description && (
+                    <p className="text-sm text-gray-600 mt-1">{box.description}</p>
+                  )}
+                  <div className="mt-2 space-y-1">
+                    <a
+                      href={box.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Visit Link →
+                    </a>
+                    {canEdit && (
+                      <div className="flex space-x-2 mt-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkerClick(box);
+                          }}
+                          className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteBox(box.id);
+                          }}
+                          className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
-                    <div className="mt-2 space-y-1">
-                      <a
-                        href={box.link_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        Visit Link →
-                      </a>
-                      {canEdit && (
-                        <div className="flex space-x-2 mt-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMarkerClick(box);
-                            }}
-                            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBox(box.id);
-                            }}
-                            className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
       )}
 
       {/* Add Location Modal */}

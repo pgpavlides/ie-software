@@ -10,7 +10,8 @@
       "Bash(cat:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(export SUPABASE_ACCESS_TOKEN=\"sb_secret_4_cUvw_zwVrciEJi8OrEaQ_CgebJgCL\")"
     ],
     "deny": []
   }
