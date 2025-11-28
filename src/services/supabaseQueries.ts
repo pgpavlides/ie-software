@@ -23,6 +23,45 @@ export interface EscapeRoomType {
   description: string;
 }
 
+export interface OvertimeEntry {
+  id: string;
+  user_id: string;
+  date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  description?: string;
+  reason?: string;
+  project?: string;
+  hours_worked: number;
+  is_approved: boolean;
+  approved_by?: string;
+  approved_at?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+}
+
+export interface OvertimeStats {
+  total_entries: number;
+  total_hours: number;
+  approved_hours: number;
+  pending_hours: number;
+  unique_users: number;
+}
+
+export interface CreateOvertimeData {
+  user_id: string;
+  date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  description?: string;
+  reason?: string;
+  project?: string;
+}
+
 // Get all escape room types
 export async function getEscapeRoomTypes(): Promise<EscapeRoomType[]> {
   const { data, error } = await supabase
@@ -294,5 +333,287 @@ export async function getCountryStats(country: string): Promise<{ cities: number
   } catch (error) {
     console.error('Unexpected error fetching country stats:', error);
     return { cities: 0, rooms: 0 };
+  }
+}
+
+// OVERTIME MANAGEMENT FUNCTIONS
+
+// Get all overtime entries
+export async function getAllOvertimes(): Promise<OvertimeEntry[]> {
+  try {
+    const { data, error } = await supabase
+      .from('overtimes')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching overtimes:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error fetching overtimes:', error);
+    return [];
+  }
+}
+
+// Get overtime entries for a specific user
+export async function getUserOvertimes(userId: string): Promise<OvertimeEntry[]> {
+  try {
+    const { data, error } = await supabase
+      .from('overtimes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching user overtimes:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error fetching user overtimes:', error);
+    return [];
+  }
+}
+
+// Get overtime entries for a date range
+export async function getOvertimesByDateRange(startDate: string, endDate: string): Promise<OvertimeEntry[]> {
+  try {
+    const { data, error } = await supabase
+      .from('overtimes')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching overtimes by date range:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error fetching overtimes by date range:', error);
+    return [];
+  }
+}
+
+// Create a new overtime entry
+export async function createOvertime(overtimeData: CreateOvertimeData): Promise<{ success: boolean; error?: string; data?: OvertimeEntry }> {
+  try {
+    const { data, error } = await supabase
+      .from('overtimes')
+      .insert([overtimeData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating overtime:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Unexpected error creating overtime:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Update an overtime entry
+export async function updateOvertime(id: string, updates: Partial<CreateOvertimeData>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('overtimes')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating overtime:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error updating overtime:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Delete an overtime entry
+export async function deleteOvertime(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('overtimes')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting overtime:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error deleting overtime:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Approve an overtime entry
+export async function approveOvertime(id: string, approverId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('overtimes')
+      .update({
+        is_approved: true,
+        approved_by: approverId,
+        approved_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error approving overtime:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error approving overtime:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Get overtime statistics
+export async function getOvertimeStats(startDate?: string, endDate?: string): Promise<OvertimeStats | null> {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_overtime_stats', {
+        start_date: startDate || null,
+        end_date: endDate || null
+      });
+
+    if (error) {
+      console.error('Error fetching overtime stats:', error);
+      return null;
+    }
+
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Unexpected error fetching overtime stats:', error);
+    return null;
+  }
+}
+
+// Check if current user is admin
+export async function isUserAdmin(): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return false;
+    }
+
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select(`
+        roles!inner(name)
+      `)
+      .eq('user_id', user.id)
+      .eq('roles.name', 'Admin');
+
+    if (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+
+    return (data || []).length > 0;
+  } catch (error) {
+    console.error('Unexpected error checking admin status:', error);
+    return false;
+  }
+}
+
+// Get current user info 
+export async function getCurrentUser() {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error || !user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email || 'No Email',
+      displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User'
+    };
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    return null;
+  }
+}
+
+// Get user display names for multiple user IDs (for overtime entries)
+export async function getUserDisplayNames(userIds: string[]): Promise<Record<string, string>> {
+  try {
+    // For now, we can only get the current user's info reliably
+    // We'll create a mapping with fallback display names
+    const currentUser = await getCurrentUser();
+    const displayNameMap: Record<string, string> = {};
+    
+    userIds.forEach(userId => {
+      if (userId === currentUser?.id) {
+        displayNameMap[userId] = currentUser.displayName;
+      } else {
+        // For other users, show email prefix or fallback
+        displayNameMap[userId] = `User ${userId.substring(0, 8)}`;
+      }
+    });
+    
+    return displayNameMap;
+  } catch (error) {
+    console.error('Error getting user display names:', error);
+    return {};
+  }
+}
+
+// Update user password
+export async function updateUserPassword(_currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.auth.updateUser({ 
+      password: newPassword 
+    });
+
+    if (error) {
+      console.error('Error updating password:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error updating password:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Update user metadata (display name, etc.)
+export async function updateUserProfile(displayName: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      data: { display_name: displayName }
+    });
+
+    if (error) {
+      console.error('Error updating profile:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error updating profile:', error);
+    return { success: false, error: 'Unexpected error occurred' };
   }
 }

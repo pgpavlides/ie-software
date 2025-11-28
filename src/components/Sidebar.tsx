@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { updateUserPassword, updateUserProfile } from '../services/supabaseQueries';
 import {
   FiChevronsRight,
   FiLogOut,
   FiTerminal,
   FiHelpCircle,
+  FiSettings,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 
@@ -17,6 +19,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
   const [open, setOpen] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
   const { user, signOut, hasRole } = useAuthStore();
 
   const allMenuItems = [
@@ -130,6 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       </div>
 
       <CommandLineButton open={open} onToggle={onToggleCommandLine} onShowHelp={() => setShowHelp(true)} />
+      <SettingsButton open={open} onOpenSettings={() => setShowProfileSettings(true)} />
       <UserInfo open={open} user={user} />
       <LogoutButton open={open} onLogout={signOut} />
       <ToggleClose open={open} setOpen={setOpen} />
@@ -228,6 +232,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
           </div>
         </div>
       )}
+
+      {/* Profile Settings Modal */}
+      {showProfileSettings && (
+        <ProfileSettings 
+          user={user} 
+          onClose={() => setShowProfileSettings(false)} 
+        />
+      )}
     </motion.nav>
   );
 };
@@ -312,6 +324,47 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
           {title}
         </motion.span>
       )}
+    </motion.button>
+  );
+};
+
+const SettingsButton: React.FC<{ open: boolean; onOpenSettings: () => void }> = ({ open, onOpenSettings }) => {
+  return (
+    <motion.button
+      layout
+      onClick={onOpenSettings}
+      className="w-full transition-colors"
+      style={{
+        backgroundColor: 'transparent'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'rgba(234, 33, 39, 0.2)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
+    >
+      <div className="flex items-center p-2">
+        <motion.div
+          layout
+          className="grid size-10 place-content-center text-lg"
+          style={{color: '#999999'}}
+        >
+          <FiSettings />
+        </motion.div>
+        {open && (
+          <motion.span
+            layout
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.125 }}
+            className="text-xs font-medium"
+            style={{color: '#999999'}}
+          >
+            Settings
+          </motion.span>
+        )}
+      </div>
     </motion.button>
   );
 };
@@ -492,6 +545,173 @@ const ToggleClose: React.FC<{ open: boolean; setOpen: (open: boolean) => void }>
         )}
       </div>
     </motion.button>
+  );
+};
+
+const ProfileSettings: React.FC<{ user: any; onClose: () => void }> = ({ user, onClose }) => {
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setLoading(true);
+    try {
+      const result = await updateUserProfile(displayName);
+      if (result.success) {
+        alert('Profile updated successfully!');
+        onClose();
+      } else {
+        alert(`Failed to update profile: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters long');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await updateUserPassword(currentPassword, newPassword);
+      if (result.success) {
+        alert('Password changed successfully!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        alert(`Failed to change password: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-800">Profile Settings</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Profile Information */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Profile Information</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Enter your display name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <input
+                  type="text"
+                  value={user?.role || ''}
+                  disabled
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+              </div>
+
+              <button
+                onClick={handleSaveProfile}
+                disabled={loading}
+                className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium py-2 px-4 rounded-md transition-colors"
+              >
+                {loading ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </div>
+
+          {/* Change Password */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Enter current password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Enter new password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Confirm new password"
+                />
+              </div>
+
+              <button
+                onClick={handleChangePassword}
+                disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+                className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium py-2 px-4 rounded-md transition-colors"
+              >
+                {loading ? 'Changing...' : 'Change Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
