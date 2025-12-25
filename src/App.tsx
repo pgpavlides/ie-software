@@ -17,10 +17,13 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import UserManagement from './components/admin/UserManagement';
 import CountryManagement from './components/admin/CountryManagement';
 import ProfilePage from './components/ProfilePage';
+import InventoryPage from './components/InventoryPage';
+import OrderListPage from './components/OrderListPage';
+import TasksPage from './components/TasksPage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks';
 
 // Router-aware components
 function AppContent() {
@@ -36,6 +39,8 @@ function AppContent() {
     if (location.pathname.startsWith('/components')) return 'components';
     if (location.pathname.startsWith('/map')) return 'map';
     if (location.pathname.startsWith('/admin/users')) return 'admin/users';
+    if (location.pathname.startsWith('/inventory')) return 'inventory';
+    if (location.pathname.startsWith('/tasks')) return 'tasks';
     return 'dashboard';
   };
 
@@ -64,6 +69,12 @@ function AppContent() {
         break;
       case 'admin/users':
         navigate('/admin/users');
+        break;
+      case 'inventory':
+        navigate('/inventory');
+        break;
+      case 'tasks':
+        navigate('/tasks');
         break;
     }
   };
@@ -248,6 +259,9 @@ function App() {
                 <CountryManagement onBack={() => window.history.back()} />
               } />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="order-list" element={<OrderListPage />} />
+              <Route path="tasks" element={<TasksPage />} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>

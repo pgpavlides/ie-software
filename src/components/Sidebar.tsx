@@ -100,6 +100,20 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       iconPath: '/icons/ADMINISTRATOR.svg',
       emoji: '👥',
       roles: ['Super Admin']
+    },
+    {
+      name: 'Inventory',
+      view: 'inventory',
+      iconPath: '/icons/BOX.svg',
+      emoji: '📦',
+      roles: ['Super Admin', 'Head of Electronics', 'Electronics']
+    },
+    {
+      name: 'Tasks',
+      view: 'tasks',
+      iconPath: '/icons/BOX.svg',
+      emoji: '📋',
+      roles: [] // Available to everyone - global task system for all departments
     }
   ];
 
@@ -167,7 +181,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
             onClearViewAs={clearViewAs}
           />
         )}
-        <CommandLineButton open={open} onToggle={onToggleCommandLine} onShowHelp={() => setShowHelp(true)} />
+        {/* Command Line - Only for Super Admin */}
+        {hasEffectiveRole('Super Admin') && (
+          <CommandLineButton open={open} onToggle={onToggleCommandLine} onShowHelp={() => setShowHelp(true)} />
+        )}
         <ProfileButton open={open} onNavigate={() => navigate('/profile')} />
         <UserInfo open={open} user={user} />
         <LogoutButton open={open} onLogout={signOut} />

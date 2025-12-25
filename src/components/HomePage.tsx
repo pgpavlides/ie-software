@@ -137,6 +137,20 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       accent: 'from-[#06b6d4] to-[#22d3ee]',
       roles: ['Super Admin', 'Head Architect'],
     },
+    {
+      id: 'tasks',
+      title: 'Tasks',
+      description: 'Assign and manage team tasks',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+          <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <path d="M9 14l2 2 4-4" />
+        </svg>
+      ),
+      accent: 'from-[#f59e0b] to-[#fbbf24]',
+      roles: ['Super Admin', 'Admin', 'Head of Electronics', 'Head of Software', 'Head Architect', 'Head of Project Manager'],
+    },
   ];
 
   // Filter categories based on user's roles
