@@ -11,7 +11,13 @@
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Bash(git checkout:*)",
-      "Bash(export SUPABASE_ACCESS_TOKEN=\"sb_secret_4_cUvw_zwVrciEJi8OrEaQ_CgebJgCL\")"
+      "Bash(export SUPABASE_ACCESS_TOKEN=\"sb_secret_4_cUvw_zwVrciEJi8OrEaQ_CgebJgCL\")",
+      "Bash(ls:*)",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "mcp__plugin_supabase_supabase__list_tables",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Skill(frontend-design)",
+      "mcp__plugin_supabase_supabase__apply_migration"
     ],
     "deny": []
   }

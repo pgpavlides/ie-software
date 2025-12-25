@@ -191,10 +191,10 @@ function App() {
   // Only show loading on very first initialization, not on auth events
   if (!appReady && loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-[#0f0f12]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Initializing...</p>
+          <div className="w-12 h-12 border-2 border-[#ea2127] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#6b6b7a]">Initializing...</p>
         </div>
       </div>
     );
@@ -208,14 +208,14 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
 
-            {/* Protected Routes */}
-            <Route 
-              path="/*" 
+            {/* Protected Routes - Require specific roles for dashboard access */}
+            <Route
+              path="/*"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requireRole={['Super Admin', 'Software', 'Head of Software']}>
                   <AppContent />
                 </ProtectedRoute>
-              } 
+              }
             >
               {/* Dashboard */}
               <Route index element={<HomePageWrapper />} />
@@ -229,9 +229,9 @@ function App() {
 
               {/* Other Pages */}
               <Route path="guides" element={
-                <div className="p-8">
-                  <h1 className="text-4xl font-bold text-gray-800 mb-4">Guides</h1>
-                  <p className="text-xl text-gray-600">Documentation and guides will be available here.</p>
+                <div className="min-h-full bg-[#0f0f12] p-8">
+                  <h1 className="text-4xl font-bold text-white mb-4">Guides</h1>
+                  <p className="text-xl text-[#6b6b7a]">Documentation and guides will be available here.</p>
                 </div>
               } />
               <Route path="utilities" element={<UtilitiesPage />} />

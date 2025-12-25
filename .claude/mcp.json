@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=waxywordtmfvaryyumht",
+      "headers": {
+        "Authorization": "Bearer sbp_8c58912e7aaf93f68da2341c0699e8973ad8507c"
+      }
+    }
+  }
+}

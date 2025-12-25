@@ -16,30 +16,27 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
   const [city, setCity] = useState<CityData | null>(null);
   const [filteredRooms, setFilteredRooms] = useState<RoomEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Fetch city data on mount
   useEffect(() => {
     let isCancelled = false;
-    
+
     async function fetchCity() {
       if (isCancelled) return;
-      
-      // Check for cached data first
+
       const cacheKey = `city_data_${cityName}_${escapeRoomTypeId}`;
       const cacheTimeKey = `city_data_${cityName}_${escapeRoomTypeId}_time`;
       const cached = sessionStorage.getItem(cacheKey);
       const cacheTime = sessionStorage.getItem(cacheTimeKey);
-      
-      // Use cache if it's less than 5 minutes old
+
       if (cached && cacheTime) {
         const age = Date.now() - parseInt(cacheTime);
-        if (age < 5 * 60 * 1000) { // 5 minutes
+        if (age < 5 * 60 * 1000) {
           try {
             const cachedCity = JSON.parse(cached);
             if (!isCancelled) {
               setCity(cachedCity);
               setLoading(false);
-              console.log(`Using cached data for city ${cityName}`);
               return;
             }
           } catch (error) {
@@ -47,13 +44,12 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
           }
         }
       }
-      
+
       setLoading(true);
       try {
         const cityData = await getCityWithRooms(cityName, escapeRoomTypeId);
         if (!isCancelled) {
           setCity(cityData);
-          // Cache the results
           if (cityData) {
             sessionStorage.setItem(cacheKey, JSON.stringify(cityData));
             sessionStorage.setItem(cacheTimeKey, Date.now().toString());
@@ -70,15 +66,14 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
         }
       }
     }
-    
+
     fetchCity();
-    
+
     return () => {
       isCancelled = true;
     };
   }, [cityName, escapeRoomTypeId]);
 
-  // Auto-focus search input when data is loaded
   useEffect(() => {
     if (!loading && city) {
       const timer = setTimeout(() => {
@@ -86,12 +81,11 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
           searchInputRef.current.focus();
         }
       }, 100);
-      
+
       return () => clearTimeout(timer);
     }
   }, [loading, city]);
 
-  // Add global keyboard shortcut for back navigation
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'Backspace') {
@@ -104,12 +98,10 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [onBack]);
 
-  // Reset selected index when search query changes
   useEffect(() => {
     setSelectedIndex(-1);
   }, [searchQuery]);
 
-  // Filter rooms based on search query
   useEffect(() => {
     if (!city) {
       setFilteredRooms([]);
@@ -137,7 +129,6 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     setFilteredRooms(filtered);
   }, [city, searchQuery]);
 
-  // Scroll selected item into view
   useEffect(() => {
     if (selectedIndex >= 0 && roomGridRef.current) {
       const selectedElement = roomGridRef.current.children[selectedIndex] as HTMLElement;
@@ -150,31 +141,7 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     }
   }, [selectedIndex]);
 
-  if (loading) {
-    return (
-      <div className="min-h-full p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading city data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!city) {
-    return (
-      <div className="min-h-full p-8">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-red-600">City not found</p>
-        </div>
-      </div>
-    );
-  }
-
   const getCountryFlag = (country: string): string => {
-    // Load saved flag mappings from localStorage
     const savedMappings = localStorage.getItem('countryFlagMappings');
     let flagMap: Record<string, string> = {
       'Germany': '/flags/de.svg',
@@ -205,8 +172,10 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     return flagMap[country] || '/flags/xx.svg';
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, id: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const connectAnyDesk = async (anydeskId: string) => {
@@ -219,26 +188,22 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
       try {
         await navigator.clipboard.writeText(anydeskId);
       } catch {
-        // Silent fail - do nothing
+        // Silent fail
       }
     }
   };
 
-  // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     let totalItems = 0;
 
     if (searchQuery) {
-      // When searching, use filtered results
       totalItems = filteredRooms.length;
     } else {
-      // When not searching, use all rooms
       totalItems = city?.rooms?.length || 0;
     }
 
     if (totalItems === 0) return;
 
-    // Calculate grid dimensions (3 columns for rooms)
     const columns = 3;
 
     switch (e.key) {
@@ -280,11 +245,9 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < totalItems) {
           if (searchQuery) {
-            // Connect to selected filtered room
             const selectedRoom = filteredRooms[selectedIndex];
             connectAnyDesk(selectedRoom.anydesk);
           } else {
-            // Connect to selected room (when not searching)
             const selectedRoom = city?.rooms?.[selectedIndex];
             if (selectedRoom) {
               connectAnyDesk(selectedRoom.anydesk);
@@ -299,57 +262,107 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-full bg-[#0f0f12] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-[#f59e0b] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#6b6b7a]">Loading rooms...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!city) {
+    return (
+      <div className="min-h-full bg-[#0f0f12] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#1a1a1f] flex items-center justify-center">
+            <svg className="w-8 h-8 text-[#ea2127]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className="text-[#ea2127] font-medium">City not found</p>
+        </div>
+      </div>
+    );
+  }
+
+  const displayRooms = searchQuery ? filteredRooms : city?.rooms || [];
+
   return (
-    <div className="min-h-full p-8">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8">
-          <button 
-            onClick={onBack}
-            className="mb-4 flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-          >
-            <span className="mr-2">←</span>
-            Back to Cities
-          </button>
-          <div className="flex items-center mb-4">
-            <img 
-              src={getCountryFlag(city.country)} 
-              alt={`${city.country} flag`}
-              className="w-12 h-8 mr-4 object-cover rounded"
+    <div className="min-h-full bg-[#0f0f12] relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-50" />
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#f59e0b] rounded-full blur-[200px] opacity-[0.03]" />
+
+      <div className="relative z-10 p-6 lg:p-10 max-w-7xl mx-auto">
+        {/* Header */}
+        <header className="mb-8 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]">
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={onBack}
+              className="group flex items-center gap-2 px-4 py-2.5 bg-[#1a1a1f] hover:bg-[#222228] text-[#a0a0b0] hover:text-white border border-[#2a2a35] hover:border-[#ea2127]/50 rounded-xl transition-all duration-200"
+            >
+              <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="text-sm font-medium">Cities</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4 mb-4">
+            <img
+              src={getCountryFlag(city.country)}
+              alt={city.country}
+              className="w-12 h-8 rounded object-cover shadow-lg"
             />
             <div>
-              <h1 className="text-4xl font-bold text-gray-800">
-                {city.name}
-              </h1>
-              <p className="text-xl text-gray-600">{city.country}</p>
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-8 bg-[#f59e0b] rounded-full" />
+                <div>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-white">
+                    {city.name}
+                  </h1>
+                  <p className="text-[#6b6b7a]">{city.country}</p>
+                </div>
+              </div>
             </div>
           </div>
-          <p className="text-lg text-gray-600">
-            {searchQuery ? `${filteredRooms.length} of ${city.rooms?.length || 0}` : city.rooms?.length || 0} room{(searchQuery ? filteredRooms.length : city.rooms?.length || 0) !== 1 ? 's' : ''} {searchQuery ? 'found' : 'available'}
-          </p>
+
+          <div className="flex items-center gap-2 ml-16">
+            <span className="text-[#f59e0b] font-mono text-lg font-semibold">
+              {displayRooms.length}
+            </span>
+            <span className="text-[#6b6b7a]">
+              {searchQuery ? `of ${city.rooms?.length || 0} ` : ''}room{displayRooms.length !== 1 ? 's' : ''} {searchQuery ? 'found' : 'available'}
+            </span>
+          </div>
         </header>
 
-        <div className="mb-6">
-          <div className="relative max-w-md">
+        {/* Search Bar */}
+        <div className="mb-8 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '100ms' }}>
+          <div className="relative max-w-xl">
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search rooms, AnyDesk ID, IP, or notes..."
+              placeholder="Search rooms, AnyDesk ID, IP..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-4 py-3.5 pl-12 pr-12 bg-[#141418] border border-[#2a2a35] rounded-xl text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#f59e0b]/50 focus:ring-2 focus:ring-[#f59e0b]/20 transition-all"
             />
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-4">
+              <svg className="w-5 h-5 text-[#5a5a68]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 flex items-center pr-3"
+                className="absolute inset-y-0 right-0 flex items-center pr-4 text-[#5a5a68] hover:text-white transition-colors"
               >
-                <svg className="w-5 h-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -357,88 +370,125 @@ export default function RoomDetails({ cityName, escapeRoomTypeId, onBack, onSele
           </div>
         </div>
 
-        {filteredRooms.length === 0 && searchQuery ? (
-          <div className="text-center py-12">
-            <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <p className="text-gray-500 text-lg">No rooms found matching "{searchQuery}"</p>
-            <p className="text-gray-400 text-sm mt-2">Try adjusting your search terms</p>
+        {/* No Results */}
+        {displayRooms.length === 0 && searchQuery ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#1a1a1f] flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#3a3a48]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <p className="text-[#6b6b7a] mb-2">No rooms found matching "{searchQuery}"</p>
+            <p className="text-[#4a4a58] text-sm">Try adjusting your search terms</p>
           </div>
         ) : (
-          <div ref={roomGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(searchQuery ? filteredRooms : city?.rooms || []).map((room, index) => (
-            <button
-              key={index}
-              onClick={() => onSelectRoom(room.name)}
-              className={`p-4 rounded-lg border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-left ${
-                selectedIndex === index 
-                  ? 'bg-red-50 border-red-500 shadow-lg' 
-                  : 'bg-white border-gray-200 hover:shadow-lg hover:border-red-300'
-              }`}
-              type="button"
-              role="button"
-              tabIndex={0}
-              aria-label={`Select ${room.name} room`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-800 flex-1">
-                  {room.name}
-                </h3>
-                <div className="flex items-center gap-2 ml-2">
-                  <span className="text-2xl">🖥️</span>
+          /* Room Grid */
+          <div
+            ref={roomGridRef}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]"
+            style={{ animationDelay: '200ms' }}
+          >
+            {displayRooms.map((room, index) => (
+              <div
+                key={index}
+                className={`group relative bg-[#141418] rounded-2xl border p-5 transition-all duration-300 ${
+                  selectedIndex === index
+                    ? 'border-[#f59e0b] shadow-lg shadow-[#f59e0b]/10'
+                    : 'border-[#1f1f28] hover:border-[#2a2a38] hover:bg-[#18181d]'
+                }`}
+              >
+                {/* Gradient accent on hover */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#f59e0b] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-t-2xl" />
+
+                {/* Room Header */}
+                <div className="flex items-start justify-between mb-4">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      connectAnyDesk(room.anydesk);
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Connect with AnyDesk"
+                    onClick={() => onSelectRoom(room.name)}
+                    className="flex-1 text-left"
                   >
-                    <img 
-                      src="/logo/anydesk-seeklogo.png" 
-                      alt="AnyDesk"
-                      className="w-8 h-8 object-contain"
-                    />
+                    <h3 className="text-lg font-semibold text-white group-hover:text-[#f59e0b] transition-colors">
+                      {room.name}
+                    </h3>
                   </button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 font-medium">AnyDesk ID:</span>
-                  <button
-                    onClick={() => copyToClipboard(room.anydesk)}
-                    className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded font-mono transition-colors"
-                    title="Click to copy"
-                  >
-                    {room.anydesk}
-                  </button>
-                </div>
-                
-                {room.ip && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 font-medium">IP Address:</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-[#1f1f28] flex items-center justify-center text-xl">
+                      🖥️
+                    </div>
                     <button
-                      onClick={() => copyToClipboard(room.ip!)}
-                      className="text-sm bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-mono transition-colors"
-                      title="Click to copy"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        connectAnyDesk(room.anydesk);
+                      }}
+                      className="p-2 bg-[#1f1f28] hover:bg-[#2a2a38] rounded-xl transition-colors"
+                      title="Connect with AnyDesk"
                     >
-                      {room.ip}
+                      <img
+                        src="/logo/anydesk-seeklogo.png"
+                        alt="AnyDesk"
+                        className="w-6 h-6 object-contain"
+                      />
                     </button>
                   </div>
-                )}
-                
+                </div>
+
+                {/* Connection Details */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[#6b6b7a]">AnyDesk</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(room.anydesk, `anydesk-${index}`);
+                      }}
+                      className={`font-mono text-sm px-3 py-1.5 rounded-lg transition-all ${
+                        copiedId === `anydesk-${index}`
+                          ? 'bg-[#10b981]/20 text-[#10b981]'
+                          : 'bg-[#3b82f6]/10 text-[#3b82f6] hover:bg-[#3b82f6]/20'
+                      }`}
+                    >
+                      {copiedId === `anydesk-${index}` ? 'Copied!' : room.anydesk}
+                    </button>
+                  </div>
+
+                  {room.ip && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#6b6b7a]">IP</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(room.ip!, `ip-${index}`);
+                        }}
+                        className={`font-mono text-sm px-3 py-1.5 rounded-lg transition-all ${
+                          copiedId === `ip-${index}`
+                            ? 'bg-[#10b981]/20 text-[#10b981]'
+                            : 'bg-[#10b981]/10 text-[#10b981] hover:bg-[#10b981]/20'
+                        }`}
+                      >
+                        {copiedId === `ip-${index}` ? 'Copied!' : room.ip}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes */}
                 {room.notes && (
-                  <div className="mt-3 p-2 bg-yellow-50 border-l-4 border-yellow-400">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Notes:</strong> {room.notes}
-                    </p>
+                  <div className="mt-4 p-3 bg-[#f59e0b]/10 border-l-2 border-[#f59e0b] rounded-r-lg">
+                    <p className="text-sm text-[#f59e0b]">{room.notes}</p>
                   </div>
                 )}
+
+                {/* View Details Button */}
+                <button
+                  onClick={() => onSelectRoom(room.name)}
+                  className="mt-4 w-full py-2.5 bg-[#1f1f28] hover:bg-[#2a2a38] text-[#8b8b9a] hover:text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
+                >
+                  View Details
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
-            </button>
-          ))}
+            ))}
           </div>
         )}
       </div>

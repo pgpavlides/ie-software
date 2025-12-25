@@ -6,6 +6,57 @@ interface UserRole {
   role_name: string;
 }
 
+// All available roles in the system
+export type RoleName =
+  | 'Super Admin'
+  | 'Admin'
+  | 'Boss'
+  | 'Efficiency Coordinator'
+  | 'Head of Software'
+  | 'Software'
+  | 'Head of Accounting'
+  | 'Accounting'
+  | 'Head of Marketing'
+  | 'Marketing'
+  | 'Head Artist'
+  | 'Artist'
+  | 'Head Designer'
+  | 'Designer'
+  | 'Head Architect'
+  | 'Architect'
+  | 'Head of Construction'
+  | 'Construction'
+  | 'CNC'
+  | 'Head of Electronics'
+  | 'Electronics'
+  | '3D and RND Production'
+  | 'Head Project Manager'
+  | 'Project Manager'
+  | 'Floor Manager'
+  | 'Delivery'
+  | 'Head of Sales'
+  | 'Sales';
+
+// Roles that have administrative privileges
+export const ADMIN_ROLES: RoleName[] = ['Super Admin', 'Admin'];
+
+// Roles that have management privileges (can view everything)
+export const MANAGEMENT_ROLES: RoleName[] = ['Super Admin', 'Admin', 'Boss', 'Efficiency Coordinator'];
+
+// All head/lead roles
+export const HEAD_ROLES: RoleName[] = [
+  'Head of Software',
+  'Head of Accounting',
+  'Head of Marketing',
+  'Head Artist',
+  'Head Designer',
+  'Head Architect',
+  'Head of Construction',
+  'Head of Electronics',
+  'Head Project Manager',
+  'Head of Sales',
+];
+
 interface AuthState {
   user: User | null;
   session: Session | null;
@@ -19,7 +70,11 @@ interface AuthState {
   signOut: () => Promise<void>;
   fetchUserRoles: () => Promise<void>;
   hasRole: (roleName: string) => boolean;
+  hasAnyRole: (roleNames: string[]) => boolean;
   isAdmin: () => boolean;
+  isSuperAdmin: () => boolean;
+  isManagement: () => boolean;
+  isDepartmentHead: () => boolean;
   initialize: () => Promise<void>;
 }
 
@@ -165,8 +220,28 @@ export const useAuthStore = create<AuthState>((set, get) => {
       return roles.includes(roleName);
     },
 
+    hasAnyRole: (roleNames: string[]) => {
+      const { roles } = get();
+      return roleNames.some(roleName => roles.includes(roleName));
+    },
+
     isAdmin: () => {
-      return get().hasRole('Admin');
+      return get().hasAnyRole(['Super Admin', 'Admin']);
+    },
+
+    isSuperAdmin: () => {
+      return get().hasRole('Super Admin');
+    },
+
+    isManagement: () => {
+      return get().hasAnyRole(['Super Admin', 'Admin', 'Boss', 'Efficiency Coordinator']);
+    },
+
+    isDepartmentHead: () => {
+      const { roles } = get();
+      return roles.some(role =>
+        role.startsWith('Head of') || role.startsWith('Head ')
+      );
     },
   };
 });
