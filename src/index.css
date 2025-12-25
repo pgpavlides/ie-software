@@ -1,7 +1,7 @@
-@import "tailwindcss";
-
-/* Import distinctive fonts */
+/* Import distinctive fonts - must be first */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import "tailwindcss";
 
 /* CSS Custom Properties for the Command Center theme */
 :root {

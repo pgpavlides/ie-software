@@ -5,7 +5,6 @@ import 'react-calendar/dist/Calendar.css';
 import type {
   OvertimeEntry,
   CreateOvertimeData,
-  OvertimeStats,
 } from '../services/supabaseQueries';
 import {
   getAllOvertimes,
@@ -23,16 +22,14 @@ interface OvertimeManagerProps {
 }
 
 export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
-  const [overtimes, setOvertimes] = useState<OvertimeEntry[]>([]);
   const [personalOvertimes, setPersonalOvertimes] = useState<OvertimeEntry[]>([]);
-  const [stats, setStats] = useState<OvertimeStats | null>(null);
+  const [allOvertimes, setAllOvertimes] = useState<OvertimeEntry[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'personal' | 'global'>('personal');
   const [currentUserId, setCurrentUserId] = useState<string>('');
-  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string>('');
   const [userDisplayNames, setUserDisplayNames] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<CreateOvertimeData>({
@@ -56,7 +53,6 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
   const initializeData = async () => {
     setLoading(true);
     try {
-      // Get current user
       const user = await getCurrentUser();
       if (!user) {
         setLoading(false);
@@ -64,23 +60,17 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
       }
 
       setCurrentUserId(user.id);
-      setCurrentUserEmail(user.email);
-      setCurrentUserDisplayName(user.displayName);
+      setCurrentUserDisplayName(user.displayName || user.email || 'User');
 
-      // Check if user is admin
       const adminStatus = await isUserAdmin();
       setIsAdmin(adminStatus);
 
-      if (adminStatus) {
-        // Set user_id in form data for personal entries
-        setFormData(prev => ({ ...prev, user_id: user.id }));
+      // Always load personal overtimes
+      await loadPersonalOvertimes(user.id);
 
-        // Load both personal and global data
-        await Promise.all([
-          loadPersonalOvertimes(user.id),
-          loadAllOvertimes(),
-          loadStats()
-        ]);
+      // Only load all overtimes if admin
+      if (adminStatus) {
+        await loadAllOvertimes();
       }
     } catch (error) {
       console.error('Error initializing data:', error);
@@ -101,9 +91,8 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
   const loadAllOvertimes = async () => {
     try {
       const data = await getAllOvertimes();
-      setOvertimes(data);
-      
-      // Get display names for all unique user IDs
+      setAllOvertimes(data);
+
       const uniqueUserIds = [...new Set(data.map(overtime => overtime.user_id))];
       if (uniqueUserIds.length > 0) {
         const displayNames = await getUserDisplayNames(uniqueUserIds);
@@ -114,96 +103,24 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
     }
   };
 
-  const loadStats = async () => {
-    try {
-      // Calculate stats using frontend logic instead of database function
-      const allOvertimes = await getAllOvertimes();
-      
-      if (allOvertimes.length === 0) {
-        setStats({
-          total_entries: 0,
-          total_hours: 0,
-          approved_hours: 0,
-          pending_hours: 0,
-          unique_users: 0
-        });
-        return;
-      }
-
-      // Calculate total hours using our corrected frontend calculation
-      const totalHours = allOvertimes.reduce((sum, overtime) => {
-        const hours = calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time);
-        return sum + hours;
-      }, 0);
-
-      const approvedHours = allOvertimes
-        .filter(overtime => overtime.is_approved)
-        .reduce((sum, overtime) => {
-          const hours = calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time);
-          return sum + hours;
-        }, 0);
-
-      const pendingHours = totalHours - approvedHours;
-      const uniqueUsers = new Set(allOvertimes.map(overtime => overtime.user_id)).size;
-
-      setStats({
-        total_entries: allOvertimes.length,
-        total_hours: totalHours,
-        approved_hours: approvedHours,
-        pending_hours: pendingHours,
-        unique_users: uniqueUsers
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate that we have both start and end times
+
     if (!startDateTime || !endDateTime) {
       alert('Please select both start and end date/time');
       return;
     }
-    
-    // Validate that end time is after start time
+
     if (startDateTime.getTime() >= endDateTime.getTime()) {
       alert('End time must be after start time');
       return;
     }
-    
-    // Additional validation: if it's the same date, ensure end time is after start time
-    const startDateStr = startDateTime.toDateString();
-    const endDateStr = endDateTime.toDateString();
-    
-    if (startDateStr === endDateStr) {
-      const startHours = startDateTime.getHours();
-      const startMinutes = startDateTime.getMinutes();
-      const endHours = endDateTime.getHours();
-      const endMinutes = endDateTime.getMinutes();
-      
-      if (endHours < startHours || (endHours === startHours && endMinutes <= startMinutes)) {
-        alert('End time must be after start time on the same day');
-        return;
-      }
-    }
-    
-    // Convert DateTime objects to required format
+
     const startDate = startDateTime.toISOString().split('T')[0];
     const endDate = endDateTime.toISOString().split('T')[0];
     const startTime = startDateTime.toTimeString().slice(0, 5);
     const endTime = endDateTime.toTimeString().slice(0, 5);
-    
-    console.log('DateTime objects:', {
-      startDateTime: startDateTime.toISOString(),
-      endDateTime: endDateTime.toISOString(),
-      startDate,
-      endDate,
-      startTime,
-      endTime
-    });
-    
+
     const dataToSubmit: CreateOvertimeData = {
       user_id: currentUserId,
       date: startDate,
@@ -214,28 +131,22 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
       reason: formData.reason,
       project: formData.project
     };
-    
-    console.log('Submitting data:', dataToSubmit);
-    
+
     try {
       if (editingId) {
-        // Update existing overtime (only personal ones)
         const result = await updateOvertime(editingId, dataToSubmit);
         if (result.success) {
           await loadPersonalOvertimes(currentUserId);
-          await loadAllOvertimes();
-          await loadStats();
+          if (isAdmin) await loadAllOvertimes();
           resetForm();
         } else {
           alert(`Error updating overtime: ${result.error}`);
         }
       } else {
-        // Create new overtime (always personal)
         const result = await createOvertime(dataToSubmit);
         if (result.success) {
           await loadPersonalOvertimes(currentUserId);
-          await loadAllOvertimes();
-          await loadStats();
+          if (isAdmin) await loadAllOvertimes();
           resetForm();
         } else {
           alert(`Error creating overtime: ${result.error}`);
@@ -248,21 +159,18 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
   };
 
   const handleEdit = (overtime: OvertimeEntry) => {
-    // Only allow editing personal entries
     if (overtime.user_id !== currentUserId) {
       alert('You can only edit your own overtime entries');
       return;
     }
 
-    // Convert overtime data to DateTime objects
     const startDate = new Date(`${overtime.date}T${overtime.start_time}`);
     let endDate = new Date(`${overtime.end_date}T${overtime.end_time}`);
-    
-    // Fix for old entries: if end time is before start time on same date, assume next day
+
     if (overtime.date === overtime.end_date && endDate <= startDate) {
-      endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000); // Add 24 hours
+      endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
     }
-    
+
     setStartDateTime(startDate);
     setEndDateTime(endDate);
     setFormData({
@@ -279,19 +187,13 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string, isPersonal: boolean = false) => {
-    if (!isPersonal) {
-      alert('You can only delete your own overtime entries');
-      return;
-    }
-
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this overtime entry?')) {
       try {
         const result = await deleteOvertime(id);
         if (result.success) {
           await loadPersonalOvertimes(currentUserId);
-          await loadAllOvertimes();
-          await loadStats();
+          if (isAdmin) await loadAllOvertimes();
         } else {
           alert(`Error deleting overtime: ${result.error}`);
         }
@@ -301,7 +203,6 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
       }
     }
   };
-
 
   const resetForm = () => {
     setFormData({
@@ -321,14 +222,13 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
   };
 
   const getCurrentViewData = () => {
-    return activeView === 'personal' ? personalOvertimes : overtimes;
+    return activeView === 'personal' ? personalOvertimes : allOvertimes;
   };
 
   const getUserDisplayName = (userId: string) => {
     if (userId === currentUserId) {
-      return currentUserDisplayName || currentUserEmail || 'Current User';
+      return currentUserDisplayName;
     }
-    // Use the fetched display name or fallback to a formatted ID
     return userDisplayNames[userId] || `User ${userId.substring(0, 8)}...`;
   };
 
@@ -341,7 +241,31 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
   };
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const calculateHours = (startDate: string, startTime: string, endDate: string, endTime: string) => {
+    const startDateTime = new Date(`${startDate}T${startTime}`);
+    let endDateTime = new Date(`${endDate}T${endTime}`);
+
+    if (startDate === endDate && endDateTime <= startDateTime) {
+      endDateTime = new Date(endDateTime.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    const diffMs = endDateTime.getTime() - startDateTime.getTime();
+    const hours = diffMs / (1000 * 60 * 60);
+
+    return Math.max(0, hours);
+  };
+
+  const getTotalHours = () => {
+    return personalOvertimes.reduce((sum, overtime) => {
+      return sum + calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time);
+    }, 0);
   };
 
   const exportPersonalOvertimes = () => {
@@ -350,29 +274,23 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
       return;
     }
 
-    // Calculate total hours for personal overtimes
-    const totalHours = personalOvertimes.reduce((sum, overtime) => {
-      const hours = calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time);
-      return sum + hours;
-    }, 0);
+    const totalHours = getTotalHours();
 
-    // Create export data
     let exportText = `Personal Overtime Report - ${currentUserDisplayName}\n`;
     exportText += `Generated on: ${new Date().toLocaleDateString()}\n\n`;
-    
+
     personalOvertimes.forEach(overtime => {
       const hours = calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time);
-      const dateRange = overtime.date === overtime.end_date 
+      const dateRange = overtime.date === overtime.end_date
         ? formatDate(overtime.date)
         : `${formatDate(overtime.date)} - ${formatDate(overtime.end_date)}`;
-      
+
       exportText += `${dateRange} - ${hours.toFixed(1)}h - ${overtime.project || 'N/A'} - ${overtime.reason || 'N/A'} - ${overtime.description || 'N/A'}\n`;
     });
 
     exportText += `\nTotal Overtime Hours: ${totalHours.toFixed(1)}h`;
     exportText += `\nTotal Overtime Entries: ${personalOvertimes.length}`;
 
-    // Create and download file
     const blob = new Blob([exportText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -384,295 +302,402 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
     URL.revokeObjectURL(url);
   };
 
-  const calculateHours = (startDate: string, startTime: string, endDate: string, endTime: string) => {
-    // Create proper datetime objects
-    const startDateTime = new Date(`${startDate}T${startTime}`);
-    let endDateTime = new Date(`${endDate}T${endTime}`);
-    
-    // Fix: If end time is before start time on same date, assume next day
-    if (startDate === endDate && endDateTime <= startDateTime) {
-      endDateTime = new Date(endDateTime.getTime() + 24 * 60 * 60 * 1000); // Add 24 hours
-    }
-    
-    // Calculate difference in milliseconds, then convert to hours
-    const diffMs = endDateTime.getTime() - startDateTime.getTime();
-    const hours = diffMs / (1000 * 60 * 60);
-    
-    return Math.max(0, hours);
-  };
-
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
-        <p className="text-gray-600">You need admin privileges to access overtime management.</p>
+      <div className="min-h-full bg-[#0f0f12] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-[#f59e0b] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#6b6b7a]">Loading overtime data...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Overtime Management</h1>
-        <p className="mt-2 text-gray-600">Manage and track overtime entries</p>
-      </div>
+    <div className="min-h-full bg-[#0f0f12] relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-50" />
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#f59e0b] rounded-full blur-[200px] opacity-[0.03]" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#3b82f6] rounded-full blur-[150px] opacity-[0.02]" />
 
-      {/* Tab Navigation */}
-      <div className="mb-8">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveView('personal')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeView === 'personal'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              My Overtime ({personalOvertimes.length})
-            </button>
-            <button
-              onClick={() => setActiveView('global')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeView === 'global'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              All Overtimes ({overtimes.length})
-            </button>
-          </nav>
-        </div>
-      </div>
+      <div className="relative z-10 p-6 lg:p-10 max-w-7xl mx-auto">
+        {/* Header */}
+        <header className="mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-[#f59e0b] rounded-2xl blur-xl opacity-30" />
+                <div className="relative w-14 h-14 bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] rounded-2xl border border-[#2a2a35] flex items-center justify-center">
+                  <svg className="w-7 h-7 text-[#f59e0b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <h1 className="text-2xl lg:text-3xl font-bold text-white tracking-tight">
+                  Overtime Tracker
+                </h1>
+                <p className="text-[#6b6b7a] text-sm mt-1">
+                  Track and manage your overtime hours
+                </p>
+              </div>
+            </div>
 
-      {/* Stats Section */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">Total Entries</h3>
-            <p className="text-3xl font-bold text-blue-600">{stats.total_entries}</p>
+            {/* Quick Stats */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#141418] rounded-xl border border-[#1f1f28]">
+                <div className="w-10 h-10 bg-[#f59e0b]/10 rounded-lg flex items-center justify-center">
+                  <span className="text-[#f59e0b] text-lg font-bold">{personalOvertimes.length}</span>
+                </div>
+                <div className="text-sm">
+                  <p className="text-[#6b6b7a]">Total Entries</p>
+                  <p className="text-white font-semibold">{getTotalHours().toFixed(1)}h logged</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">Total Hours</h3>
-            <p className="text-3xl font-bold text-green-600">{stats.total_hours.toFixed(1)}</p>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">Unique Users</h3>
-            <p className="text-3xl font-bold text-purple-600">{stats.unique_users}</p>
-          </div>
-        </div>
-      )}
+        </header>
 
-      {/* Add New Button and Export Button - Only for Personal View */}
-      {activeView === 'personal' && (
-        <div className="mb-6 flex space-x-4">
+        {/* Tab Navigation - Only show if admin */}
+        {isAdmin && (
+          <div className="mb-6">
+            <div className="inline-flex p-1 bg-[#141418] rounded-xl border border-[#1f1f28]">
+              <button
+                onClick={() => setActiveView('personal')}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeView === 'personal'
+                    ? 'bg-[#f59e0b] text-white shadow-lg shadow-[#f59e0b]/20'
+                    : 'text-[#6b6b7a] hover:text-white'
+                }`}
+              >
+                My Overtime ({personalOvertimes.length})
+              </button>
+              <button
+                onClick={() => setActiveView('global')}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeView === 'global'
+                    ? 'bg-[#f59e0b] text-white shadow-lg shadow-[#f59e0b]/20'
+                    : 'text-[#6b6b7a] hover:text-white'
+                }`}
+              >
+                All Overtimes ({allOvertimes.length})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="mb-6 flex flex-wrap gap-3">
           <button
             onClick={() => setShowForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#f59e0b] hover:bg-[#d97706] text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-[#f59e0b]/20"
           >
-            Add New Overtime
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Overtime
           </button>
           <button
             onClick={exportPersonalOvertimes}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#141418] hover:bg-[#1a1a1f] text-white rounded-xl font-medium transition-all duration-200 border border-[#2a2a35] hover:border-[#3a3a48]"
           >
-            Export to TXT
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export Report
           </button>
         </div>
-      )}
 
-      {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">
-              {editingId ? 'Edit Overtime' : 'Add New Overtime'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date & Time</label>
-                  <DateTimePicker
-                    onChange={(date) => {
-                      if (date && date instanceof Date) {
-                        setStartDateTime(date);
-                      }
-                    }}
-                    value={startDateTime}
-                    format="y-MM-dd HH:mm"
-                    className="w-full"
-                    calendarIcon={null}
-                    clearIcon={null}
-                    disableClock={true}
-                    locale="en-US"
-                    maxDetail="minute"
-                    hourPlaceholder="HH (00-23)"
-                    minutePlaceholder="MM"
-                    showLeadingZeros={true}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Use 24-hour format: 00:00 to 23:59</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date & Time</label>
-                  <DateTimePicker
-                    onChange={(date) => {
-                      if (date && date instanceof Date) {
-                        setEndDateTime(date);
-                      }
-                    }}
-                    value={endDateTime}
-                    format="y-MM-dd HH:mm"
-                    className="w-full"
-                    calendarIcon={null}
-                    clearIcon={null}
-                    disableClock={true}
-                    locale="en-US"
-                    maxDetail="minute"
-                    hourPlaceholder="HH (00-23)"
-                    minutePlaceholder="MM"
-                    showLeadingZeros={true}
-                    minDate={startDateTime || undefined}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Use 24-hour format: 00:00 to 23:59</p>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Reason</label>
-                <input
-                  type="text"
-                  value={formData.reason}
-                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Project</label>
-                <input
-                  type="text"
-                  value={formData.project}
-                  onChange={(e) => setFormData({ ...formData, project: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
+        {/* Form Modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-[#141418] border border-[#2a2a35] rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+              <div className="sticky top-0 bg-[#141418] border-b border-[#2a2a35] px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">
+                  {editingId ? 'Edit Overtime' : 'Add New Overtime'}
+                </h2>
                 <button
-                  type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#1f1f28] rounded-lg transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  {editingId ? 'Update' : 'Create'}
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* Overtime Entries Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {activeView === 'global' && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Admin Name</th>
-              )}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-              {activeView === 'personal' && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {getCurrentViewData().map((overtime) => (
-              <tr key={overtime.id}>
-                {activeView === 'global' && (
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <div className="text-sm font-medium text-gray-900">
-                        {getUserDisplayName(overtime.user_id)}
-                      </div>
-                    </div>
-                  </td>
-                )}
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {overtime.date === overtime.end_date 
-                    ? formatDate(overtime.date)
-                    : `${formatDate(overtime.date)} - ${formatDate(overtime.end_date)}`
-                  }
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatTime(overtime.start_time)} - {formatTime(overtime.end_time)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time).toFixed(1)}h
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
+              <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-80px)]">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    {overtime.description && <p>{overtime.description}</p>}
-                    {overtime.reason && <p className="text-gray-600">Reason: {overtime.reason}</p>}
-                    {overtime.project && <p className="text-gray-600">Project: {overtime.project}</p>}
-                  </div>
-                </td>
-                {activeView === 'personal' && (
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(overtime)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(overtime.id, true)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                    <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Start Date & Time</label>
+                    <div className="datetime-picker-dark">
+                      <DateTimePicker
+                        onChange={(date) => {
+                          if (date && date instanceof Date) {
+                            setStartDateTime(date);
+                          }
+                        }}
+                        value={startDateTime}
+                        format="y-MM-dd HH:mm"
+                        className="w-full"
+                        calendarIcon={null}
+                        clearIcon={null}
+                        disableClock={true}
+                        locale="en-US"
+                        maxDetail="minute"
+                        showLeadingZeros={true}
+                      />
                     </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        
-        {getCurrentViewData().length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">
-              {activeView === 'personal' 
-                ? 'No personal overtime entries found' 
-                : 'No overtime entries found'
-              }
-            </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8b8b9a] mb-2">End Date & Time</label>
+                    <div className="datetime-picker-dark">
+                      <DateTimePicker
+                        onChange={(date) => {
+                          if (date && date instanceof Date) {
+                            setEndDateTime(date);
+                          }
+                        }}
+                        value={endDateTime}
+                        format="y-MM-dd HH:mm"
+                        className="w-full"
+                        calendarIcon={null}
+                        clearIcon={null}
+                        disableClock={true}
+                        locale="en-US"
+                        maxDetail="minute"
+                        showLeadingZeros={true}
+                        minDate={startDateTime || undefined}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Project</label>
+                  <input
+                    type="text"
+                    value={formData.project}
+                    onChange={(e) => setFormData({ ...formData, project: e.target.value })}
+                    className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#f59e0b]/50 focus:ring-2 focus:ring-[#f59e0b]/20 transition-all"
+                    placeholder="e.g., Room Alpha, Backend API"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Reason</label>
+                  <input
+                    type="text"
+                    value={formData.reason}
+                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#f59e0b]/50 focus:ring-2 focus:ring-[#f59e0b]/20 transition-all"
+                    placeholder="e.g., Urgent deadline, Bug fix"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#f59e0b]/50 focus:ring-2 focus:ring-[#f59e0b]/20 transition-all resize-none"
+                    rows={3}
+                    placeholder="What did you work on?"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-[#2a2a35]">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-5 py-2.5 bg-[#1f1f28] hover:bg-[#2a2a38] text-white rounded-xl font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-[#f59e0b] hover:bg-[#d97706] text-white rounded-xl font-medium transition-all shadow-lg shadow-[#f59e0b]/20"
+                  >
+                    {editingId ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
+
+        {/* Overtime Entries */}
+        <div className="space-y-3">
+          {getCurrentViewData().length === 0 ? (
+            <div className="bg-[#141418] rounded-2xl border border-[#1f1f28] p-12 text-center">
+              <div className="w-16 h-16 bg-[#1a1a1f] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-[#4a4a58]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">No overtime entries</h3>
+              <p className="text-[#6b6b7a] mb-6">
+                {activeView === 'personal'
+                  ? "You haven't logged any overtime yet. Click 'Add Overtime' to get started."
+                  : "No overtime entries have been logged yet."
+                }
+              </p>
+              {activeView === 'personal' && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#f59e0b] hover:bg-[#d97706] text-white rounded-xl font-medium transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Your First Entry
+                </button>
+              )}
+            </div>
+          ) : (
+            getCurrentViewData().map((overtime) => {
+              const hours = calculateHours(overtime.date, overtime.start_time, overtime.end_date, overtime.end_time);
+              const isOwner = overtime.user_id === currentUserId;
+
+              return (
+                <div
+                  key={overtime.id}
+                  className="group bg-[#141418] rounded-2xl border border-[#1f1f28] p-5 transition-all duration-200 hover:border-[#2a2a38] hover:bg-[#18181d]"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                    {/* Time Info */}
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-14 h-14 bg-gradient-to-br from-[#f59e0b]/20 to-[#f59e0b]/5 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <span className="text-[#f59e0b] font-bold text-lg">{hours.toFixed(1)}h</span>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-1">
+                          <span className="text-white font-semibold">
+                            {overtime.date === overtime.end_date
+                              ? formatDate(overtime.date)
+                              : `${formatDate(overtime.date)} - ${formatDate(overtime.end_date)}`
+                            }
+                          </span>
+                          <span className="text-[#4a4a58]">|</span>
+                          <span className="text-[#8b8b9a] font-mono text-sm">
+                            {formatTime(overtime.start_time)} - {formatTime(overtime.end_time)}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {activeView === 'global' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#3b82f6]/10 text-[#3b82f6] rounded-lg text-xs font-medium">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              {getUserDisplayName(overtime.user_id)}
+                            </span>
+                          )}
+                          {overtime.project && (
+                            <span className="inline-flex items-center px-2.5 py-1 bg-[#10b981]/10 text-[#10b981] rounded-lg text-xs font-medium">
+                              {overtime.project}
+                            </span>
+                          )}
+                          {overtime.reason && (
+                            <span className="inline-flex items-center px-2.5 py-1 bg-[#8b5cf6]/10 text-[#8b5cf6] rounded-lg text-xs font-medium">
+                              {overtime.reason}
+                            </span>
+                          )}
+                        </div>
+
+                        {overtime.description && (
+                          <p className="text-[#6b6b7a] text-sm mt-2 line-clamp-2">
+                            {overtime.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions - Only for owner */}
+                    {isOwner && (
+                      <div className="flex items-center gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEdit(overtime)}
+                          className="p-2.5 text-[#6b6b7a] hover:text-[#3b82f6] hover:bg-[#3b82f6]/10 rounded-lg transition-all"
+                          title="Edit"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(overtime.id)}
+                          className="p-2.5 text-[#6b6b7a] hover:text-[#ea2127] hover:bg-[#ea2127]/10 rounded-lg transition-all"
+                          title="Delete"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
+
+      {/* Custom styles for date picker */}
+      <style>{`
+        .datetime-picker-dark .react-datetime-picker__wrapper {
+          background: #1a1a1f;
+          border: 1px solid #2a2a35;
+          border-radius: 0.75rem;
+          padding: 0.75rem 1rem;
+          color: white;
+        }
+        .datetime-picker-dark .react-datetime-picker__inputGroup__input {
+          color: white;
+          background: transparent;
+        }
+        .datetime-picker-dark .react-datetime-picker__inputGroup__divider {
+          color: #6b6b7a;
+        }
+        .datetime-picker-dark .react-datetime-picker__inputGroup__leadingZero {
+          color: white;
+        }
+        .datetime-picker-dark .react-calendar {
+          background: #141418;
+          border: 1px solid #2a2a35;
+          border-radius: 0.75rem;
+          color: white;
+        }
+        .datetime-picker-dark .react-calendar__tile {
+          color: white;
+        }
+        .datetime-picker-dark .react-calendar__tile:enabled:hover,
+        .datetime-picker-dark .react-calendar__tile:enabled:focus {
+          background: #2a2a35;
+        }
+        .datetime-picker-dark .react-calendar__tile--active {
+          background: #f59e0b !important;
+        }
+        .datetime-picker-dark .react-calendar__navigation button {
+          color: white;
+        }
+        .datetime-picker-dark .react-calendar__navigation button:enabled:hover,
+        .datetime-picker-dark .react-calendar__navigation button:enabled:focus {
+          background: #2a2a35;
+        }
+        .datetime-picker-dark .react-calendar__month-view__weekdays {
+          color: #6b6b7a;
+        }
+        .datetime-picker-dark .react-calendar__month-view__days__day--weekend {
+          color: #f59e0b;
+        }
+        .datetime-picker-dark .react-calendar__month-view__days__day--neighboringMonth {
+          color: #4a4a58;
+        }
+      `}</style>
     </div>
   );
 };

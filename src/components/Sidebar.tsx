@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useViewAsStore } from '../store/viewAsStore';
-import { updateUserPassword, updateUserProfile } from '../services/supabaseQueries';
 import {
   FiChevronsLeft,
   FiChevronsRight,
   FiLogOut,
   FiTerminal,
   FiHelpCircle,
-  FiSettings,
+  FiUser,
   FiEye,
   FiX,
 } from "react-icons/fi";
@@ -20,9 +20,9 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
-  const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [showViewAsModal, setShowViewAsModal] = useState(false);
   const { user, signOut } = useAuthStore();
   const {
@@ -50,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       view: 'dashboard',
       iconPath: '/icons/Dashboard.svg',
       emoji: '🏠',
-      roles: ['Super Admin', 'Software', 'Head of Software']
+      roles: [] // Available to everyone
     },
     {
       name: 'Room',
@@ -78,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       view: 'overtimes',
       iconPath: '/icons/HUMAN.svg',
       emoji: '⏰',
-      roles: ['Super Admin', 'Software', 'Head of Software']
+      roles: [] // Available to everyone
     },
     {
       name: 'Components',
@@ -92,7 +92,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       view: 'map',
       iconPath: '/icons/Dashboard.svg',
       emoji: '🗺️',
-      roles: ['Super Admin', 'Admin', 'Architect', 'Project Manager']
+      roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head of Project Manager']
+    },
+    {
+      name: 'User Management',
+      view: 'admin/users',
+      iconPath: '/icons/ADMINISTRATOR.svg',
+      emoji: '👥',
+      roles: ['Super Admin']
     }
   ];
 
@@ -101,10 +108,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
   const hasEffectiveRole = (role: string) => effectiveMenuRoles.includes(role);
 
   const menuItems = allMenuItems.filter(item => {
-    if (item.roles) {
-      return item.roles.some(role => hasEffectiveRole(role));
+    // Empty roles array means available to everyone
+    if (!item.roles || item.roles.length === 0) {
+      return true;
     }
-    return true;
+    return item.roles.some(role => hasEffectiveRole(role));
   });
 
   return (
@@ -160,7 +168,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
           />
         )}
         <CommandLineButton open={open} onToggle={onToggleCommandLine} onShowHelp={() => setShowHelp(true)} />
-        <SettingsButton open={open} onOpenSettings={() => setShowProfileSettings(true)} />
+        <ProfileButton open={open} onNavigate={() => navigate('/profile')} />
         <UserInfo open={open} user={user} />
         <LogoutButton open={open} onLogout={signOut} />
         <ToggleClose open={open} setOpen={setOpen} />
@@ -232,14 +240,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
             </div>
           </div>
         </div>
-      )}
-
-      {/* Profile Settings Modal */}
-      {showProfileSettings && (
-        <ProfileSettings
-          user={user}
-          onClose={() => setShowProfileSettings(false)}
-        />
       )}
 
       {/* ViewAs Modal */}
@@ -323,19 +323,19 @@ const Option: React.FC<OptionProps> = ({ iconPath, emoji, title, view, selected,
   );
 };
 
-const SettingsButton: React.FC<{ open: boolean; onOpenSettings: () => void }> = ({ open, onOpenSettings }) => {
+const ProfileButton: React.FC<{ open: boolean; onNavigate: () => void }> = ({ open, onNavigate }) => {
   return (
     <button
-      onClick={onOpenSettings}
+      onClick={onNavigate}
       className={`flex items-center gap-3 w-full rounded-xl transition-all duration-200 text-[#6b6b7a] hover:bg-[#1a1a1f] hover:text-white ${
         open ? 'px-3 py-2.5' : 'px-0 py-2.5 justify-center'
       }`}
-      title={!open ? 'Settings' : undefined}
+      title={!open ? 'Profile' : undefined}
     >
       <div className={`flex items-center justify-center ${open ? 'w-6' : 'w-full'}`}>
-        <FiSettings className="w-5 h-5" />
+        <FiUser className="w-5 h-5" />
       </div>
-      {open && <span className="text-sm font-medium">Settings</span>}
+      {open && <span className="text-sm font-medium">Profile</span>}
     </button>
   );
 };
@@ -711,173 +711,6 @@ const ViewAsModal: React.FC<{
             >
               Close
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ProfileSettings: React.FC<{ user: any; onClose: () => void }> = ({ user, onClose }) => {
-  const [displayName, setDisplayName] = useState(user?.displayName || '');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSaveProfile = async () => {
-    setLoading(true);
-    try {
-      const result = await updateUserProfile(displayName);
-      if (result.success) {
-        alert('Profile updated successfully!');
-        onClose();
-      } else {
-        alert(`Failed to update profile: ${result.error}`);
-      }
-    } catch (error) {
-      alert('Failed to update profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (newPassword !== confirmPassword) {
-      alert('New passwords do not match');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      alert('Password must be at least 6 characters long');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await updateUserPassword(currentPassword, newPassword);
-      if (result.success) {
-        alert('Password changed successfully!');
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-      } else {
-        alert(`Failed to change password: ${result.error}`);
-      }
-    } catch (error) {
-      alert('Failed to change password');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#141418] border border-[#2a2a35] rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden">
-        <div className="sticky top-0 bg-[#141418] border-b border-[#2a2a35] px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white">Profile Settings</h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#1f1f28] rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-          {/* Profile Information */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Profile Information</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Display Name</label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
-                  placeholder="Enter your display name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Email</label>
-                <input
-                  type="email"
-                  value={user?.email || ''}
-                  disabled
-                  className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-[#5a5a68] cursor-not-allowed"
-                />
-                <p className="text-xs text-[#5a5a68] mt-1">Email cannot be changed</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Role</label>
-                <input
-                  type="text"
-                  value={user?.role || ''}
-                  disabled
-                  className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-[#5a5a68] cursor-not-allowed"
-                />
-              </div>
-
-              <button
-                onClick={handleSaveProfile}
-                disabled={loading}
-                className="w-full bg-[#ea2127] hover:bg-[#d11920] disabled:bg-[#ea2127]/50 text-white font-medium py-3 px-4 rounded-xl transition-colors"
-              >
-                {loading ? 'Saving...' : 'Save Profile'}
-              </button>
-            </div>
-          </div>
-
-          {/* Change Password */}
-          <div className="border-t border-[#2a2a35] pt-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Change Password</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Current Password</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
-                  placeholder="Enter current password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
-                  placeholder="Enter new password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Confirm New Password</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-[#1a1a1f] border border-[#2a2a35] rounded-xl px-4 py-3 text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
-                  placeholder="Confirm new password"
-                />
-              </div>
-
-              <button
-                onClick={handleChangePassword}
-                disabled={loading || !currentPassword || !newPassword || !confirmPassword}
-                className="w-full bg-[#ea2127] hover:bg-[#d11920] disabled:bg-[#ea2127]/50 text-white font-medium py-3 px-4 rounded-xl transition-colors"
-              >
-                {loading ? 'Changing...' : 'Change Password'}
-              </button>
-            </div>
           </div>
         </div>
       </div>

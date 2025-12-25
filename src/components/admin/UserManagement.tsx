@@ -5,6 +5,7 @@ interface User {
   id: string;
   email: string;
   full_name: string;
+  avatar_url: string | null;
   created_at: string;
   roles: string[];
 }
@@ -54,13 +55,34 @@ export default function UserManagement() {
 
       if (error) throw error;
 
-      const formattedUsers = usersData?.map((user: any) => ({
-        id: user.user_id,
-        email: user.email || '',
-        full_name: user.full_name || 'N/A',
-        created_at: user.created_at,
-        roles: user.role_names || [],
-      })) || [];
+      // Get avatar URLs for each user
+      const formattedUsers = await Promise.all(
+        (usersData || []).map(async (user: any) => {
+          // Try to get avatar from storage
+          let avatarUrl: string | null = null;
+
+          // Check if user has an avatar in storage
+          const { data: avatarData } = await supabase.storage
+            .from('avatars')
+            .list(user.user_id, { limit: 1 });
+
+          if (avatarData && avatarData.length > 0) {
+            const { data: urlData } = supabase.storage
+              .from('avatars')
+              .getPublicUrl(`${user.user_id}/${avatarData[0].name}`);
+            avatarUrl = urlData?.publicUrl || null;
+          }
+
+          return {
+            id: user.user_id,
+            email: user.email || '',
+            full_name: user.full_name || 'N/A',
+            avatar_url: avatarUrl,
+            created_at: user.created_at,
+            roles: user.role_names || [],
+          };
+        })
+      );
 
       setUsers(formattedUsers);
     } catch (error) {
@@ -310,8 +332,16 @@ export default function UserManagement() {
                     <tr key={user.id} className="hover:bg-[#1a1a1f] transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#ec4899] flex items-center justify-center text-white font-semibold text-sm">
-                            {user.full_name.charAt(0).toUpperCase()}
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7c3aed] to-[#ec4899] flex items-center justify-center text-white font-semibold text-sm overflow-hidden ring-2 ring-[#1f1f28]">
+                            {user.avatar_url ? (
+                              <img
+                                src={user.avatar_url}
+                                alt={user.full_name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              user.full_name.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <div>
                             <div className="font-medium text-white">{user.full_name}</div>
@@ -394,11 +424,24 @@ export default function UserManagement() {
             <div className="bg-[#141418] border border-[#2a2a35] rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
               <div className="sticky top-0 bg-[#141418] border-b border-[#2a2a35] px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Assign Role</h2>
-                    <p className="text-[#6b6b7a] text-sm mt-1">
-                      Assign roles to <span className="text-[#7c3aed]">{selectedUser.full_name}</span>
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#7c3aed] to-[#ec4899] flex items-center justify-center text-white font-semibold overflow-hidden ring-2 ring-[#2a2a35]">
+                      {selectedUser.avatar_url ? (
+                        <img
+                          src={selectedUser.avatar_url}
+                          alt={selectedUser.full_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-lg">{selectedUser.full_name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Assign Role</h2>
+                      <p className="text-[#6b6b7a] text-sm mt-0.5">
+                        to <span className="text-[#7c3aed]">{selectedUser.full_name}</span>
+                      </p>
+                    </div>
                   </div>
                   <button
                     onClick={() => {

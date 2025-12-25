@@ -600,10 +600,15 @@ export async function updateUserPassword(_currentPassword: string, newPassword: 
 }
 
 // Update user metadata (display name, etc.)
-export async function updateUserProfile(displayName: string): Promise<{ success: boolean; error?: string }> {
+export async function updateUserProfile(displayName: string, avatarUrl?: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const updateData: { display_name: string; avatar_url?: string } = { display_name: displayName };
+    if (avatarUrl !== undefined) {
+      updateData.avatar_url = avatarUrl;
+    }
+
     const { error } = await supabase.auth.updateUser({
-      data: { display_name: displayName }
+      data: updateData
     });
 
     if (error) {
@@ -615,5 +620,120 @@ export async function updateUserProfile(displayName: string): Promise<{ success:
   } catch (error) {
     console.error('Unexpected error updating profile:', error);
     return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Upload avatar image
+export async function uploadAvatar(userId: string, file: File): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/avatar.${fileExt}`;
+
+    // Delete existing avatar first (if any)
+    await supabase.storage
+      .from('avatars')
+      .remove([fileName]);
+
+    // Upload new avatar
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Error uploading avatar:', uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName);
+
+    // Add cache-busting query param
+    const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    // Update user metadata with avatar URL
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { avatar_url: avatarUrl }
+    });
+
+    if (updateError) {
+      console.error('Error updating user avatar metadata:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true, url: avatarUrl };
+  } catch (error) {
+    console.error('Unexpected error uploading avatar:', error);
+    return { success: false, error: 'Unexpected error occurred' };
+  }
+}
+
+// Get avatar URL for a user
+export async function getAvatarUrl(userId: string): Promise<string | null> {
+  try {
+    const { data } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(`${userId}/avatar.jpg`);
+
+    // Check if the file actually exists by trying to fetch it
+    const response = await fetch(data.publicUrl, { method: 'HEAD' });
+    if (response.ok) {
+      return data.publicUrl;
+    }
+
+    // Try other extensions
+    for (const ext of ['png', 'jpeg', 'webp', 'gif']) {
+      const { data: extData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(`${userId}/avatar.${ext}`);
+
+      const extResponse = await fetch(extData.publicUrl, { method: 'HEAD' });
+      if (extResponse.ok) {
+        return extData.publicUrl;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error getting avatar URL:', error);
+    return null;
+  }
+}
+
+// Get full user profile including avatar
+export async function getFullUserProfile() {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      return null;
+    }
+
+    // Get user roles
+    const { data: rolesData } = await supabase
+      .from('user_roles')
+      .select(`
+        roles(name, color, description)
+      `)
+      .eq('user_id', user.id);
+
+    const roles = rolesData?.map((r: any) => r.roles) || [];
+
+    return {
+      id: user.id,
+      email: user.email || '',
+      displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
+      avatarUrl: user.user_metadata?.avatar_url || null,
+      roles,
+      createdAt: user.created_at,
+      lastSignIn: user.last_sign_in_at
+    };
+  } catch (error) {
+    console.error('Error getting full user profile:', error);
+    return null;
   }
 }

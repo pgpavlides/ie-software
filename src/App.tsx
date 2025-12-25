@@ -16,10 +16,11 @@ import Login from './components/auth/Login';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import UserManagement from './components/admin/UserManagement';
 import CountryManagement from './components/admin/CountryManagement';
+import ProfilePage from './components/ProfilePage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users';
 
 // Router-aware components
 function AppContent() {
@@ -34,6 +35,7 @@ function AppContent() {
     if (location.pathname.startsWith('/overtimes')) return 'overtimes';
     if (location.pathname.startsWith('/components')) return 'components';
     if (location.pathname.startsWith('/map')) return 'map';
+    if (location.pathname.startsWith('/admin/users')) return 'admin/users';
     return 'dashboard';
   };
 
@@ -59,6 +61,9 @@ function AppContent() {
         break;
       case 'map':
         navigate('/map');
+        break;
+      case 'admin/users':
+        navigate('/admin/users');
         break;
     }
   };
@@ -208,11 +213,11 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
 
-            {/* Protected Routes - Require specific roles for dashboard access */}
+            {/* Protected Routes - Any authenticated user can access, menu filtering handles permissions */}
             <Route
               path="/*"
               element={
-                <ProtectedRoute requireRole={['Super Admin', 'Software', 'Head of Software']}>
+                <ProtectedRoute>
                   <AppContent />
                 </ProtectedRoute>
               }
@@ -242,6 +247,7 @@ function App() {
               <Route path="admin/countries" element={
                 <CountryManagement onBack={() => window.history.back()} />
               } />
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>
