@@ -20,7 +20,10 @@
       "mcp__plugin_supabase_supabase__apply_migration",
       "mcp__plugin_supabase_supabase__search_docs",
       "mcp__plugin_supabase_supabase__get_project",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nv0.2 - Mobile UX improvements and inventory enhancements\n\n- Remove mobile top navbar \\(use bottom nav only\\)\n- Add logout button to Profile page\n- Add back button to Order List page\n- Fix back navigation for filtered views \\(Order List, Low Stock, Reported Items\\)\n- Center clock on mobile dashboard\n- Remove box emoji from category titles in inventory\n- Add electronic inventory icons support\n- Add Message of the Day table \\(hidden, for future use\\)\n- Various mobile responsive improvements\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git config:*)"
     ],
     "deny": []
   }

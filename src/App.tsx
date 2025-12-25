@@ -23,7 +23,7 @@ import TasksPage from './components/TasksPage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile';
 
 // Router-aware components
 function AppContent() {
@@ -41,6 +41,7 @@ function AppContent() {
     if (location.pathname.startsWith('/admin/users')) return 'admin/users';
     if (location.pathname.startsWith('/inventory')) return 'inventory';
     if (location.pathname.startsWith('/tasks')) return 'tasks';
+    if (location.pathname.startsWith('/profile')) return 'profile';
     return 'dashboard';
   };
 
@@ -75,6 +76,9 @@ function AppContent() {
         break;
       case 'tasks':
         navigate('/tasks');
+        break;
+      case 'profile':
+        navigate('/profile');
         break;
     }
   };

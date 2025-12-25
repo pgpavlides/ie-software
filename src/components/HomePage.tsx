@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useViewAsStore } from '../store/viewAsStore';
 import { getFullUserProfile } from '../services/supabaseQueries';
+import supabase from '../lib/supabase';
 
 interface HomePageProps {
   onSelectCategory: (category: string) => void;
@@ -14,6 +15,13 @@ interface UserProfile {
   roles: Array<{ name: string; color: string }>;
 }
 
+interface MessageOfTheDay {
+  id: string;
+  message: string;
+  updated_by_name: string | null;
+  updated_at: string;
+}
+
 export default function HomePage({ onSelectCategory }: HomePageProps) {
   const navigate = useNavigate();
   const { getEffectiveRoles } = useViewAsStore();
@@ -22,9 +30,18 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
   // Helper to check if user has any of the specified roles
   const hasAnyRole = (roles: string[]) => effectiveRoles.some(role => roles.includes(role));
 
+  // Check if user can edit message of the day
+  const canEditMessage = hasAnyRole(['Super Admin', 'Boss']);
+
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Message of the Day state
+  const [messageOfTheDay, setMessageOfTheDay] = useState<MessageOfTheDay | null>(null);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [editedMessage, setEditedMessage] = useState('');
+  const [savingMessage, setSavingMessage] = useState(false);
 
   // Fetch user profile
   useEffect(() => {
@@ -55,6 +72,77 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Fetch message of the day
+  useEffect(() => {
+    async function fetchMessage() {
+      try {
+        const { data } = await supabase
+          .from('message_of_the_day')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (data) {
+          setMessageOfTheDay(data);
+        }
+      } catch (error) {
+        // Table might not exist yet, ignore error
+        console.log('Message of the day not available');
+      }
+    }
+
+    fetchMessage();
+  }, []);
+
+  // Save message of the day
+  const saveMessage = async () => {
+    if (!editedMessage.trim() || !userProfile) return;
+
+    setSavingMessage(true);
+    try {
+      if (messageOfTheDay) {
+        // Update existing message
+        const { data, error } = await supabase
+          .from('message_of_the_day')
+          .update({
+            message: editedMessage.trim(),
+            updated_by_name: userProfile.displayName,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', messageOfTheDay.id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          setMessageOfTheDay(data);
+        }
+      } else {
+        // Insert new message
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data, error } = await supabase
+          .from('message_of_the_day')
+          .insert({
+            message: editedMessage.trim(),
+            updated_by: user?.id,
+            updated_by_name: userProfile.displayName
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          setMessageOfTheDay(data);
+        }
+      }
+
+      setIsEditingMessage(false);
+    } catch (error) {
+      console.error('Error saving message:', error);
+    } finally {
+      setSavingMessage(false);
+    }
+  };
 
   const allCategories = [
     {
@@ -135,12 +223,24 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
         </svg>
       ),
       accent: 'from-[#06b6d4] to-[#22d3ee]',
-      roles: ['Super Admin', 'Head Architect'],
+      roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head of Project Manager'],
+    },
+    {
+      id: 'inventory',
+      title: 'Inventory',
+      description: 'Manage electronics components and stock',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      ),
+      accent: 'from-[#06b6d4] to-[#22d3ee]',
+      roles: ['Super Admin', 'Head of Electronics', 'Electronics'],
     },
     {
       id: 'tasks',
       title: 'Tasks',
-      description: 'Assign and manage team tasks',
+      description: 'View and manage assigned tasks',
       icon: (
         <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
@@ -149,7 +249,22 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
         </svg>
       ),
       accent: 'from-[#f59e0b] to-[#fbbf24]',
-      roles: ['Super Admin', 'Admin', 'Head of Electronics', 'Head of Software', 'Head Architect', 'Head of Project Manager'],
+      roles: [], // Available to everyone - global task system
+    },
+    {
+      id: 'admin/users',
+      title: 'User Management',
+      description: 'Manage users, roles and permissions',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+      accent: 'from-[#ef4444] to-[#f87171]',
+      roles: ['Super Admin'],
     },
   ];
 
@@ -260,9 +375,9 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
             </div>
 
             {/* Live Clock and User Profile */}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center justify-center lg:justify-end gap-6 w-full lg:w-auto">
               {/* Clock */}
-              <div className="text-right">
+              <div className="text-center lg:text-right">
                 <div className="font-mono text-3xl lg:text-4xl font-semibold text-white tracking-wider">
                   {formatTime(currentTime)}
                 </div>
@@ -354,6 +469,94 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
             </div>
           </div>
         </header>
+
+        {/* Message of the Day - Hidden for now, will be added later */}
+        {false && (messageOfTheDay?.message || canEditMessage) && (
+          <section
+            className="mb-8 opacity-0 animate-[fadeSlideIn_0.6s_ease-out_forwards]"
+            style={{ animationDelay: '150ms' }}
+          >
+            <div className="relative bg-gradient-to-br from-[#1a1a23] to-[#141418] rounded-2xl border border-[#2a2a35] overflow-hidden">
+              {/* Accent line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ea2127] via-[#ff4f54] to-[#ea2127]" />
+
+              <div className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    {/* Icon */}
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-[#ea2127]/10 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#ea2127]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                      </svg>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-sm font-semibold text-[#ea2127] uppercase tracking-wider">Message of the Day</h3>
+                      </div>
+
+                      {isEditingMessage ? (
+                        <div className="space-y-3">
+                          <textarea
+                            value={editedMessage}
+                            onChange={(e) => setEditedMessage(e.target.value)}
+                            placeholder="Enter a message for all users..."
+                            className="w-full px-4 py-3 bg-[#0f0f12] border border-[#2a2a35] rounded-xl text-white placeholder:text-[#4a4a58] focus:outline-none focus:border-[#ea2127] focus:ring-2 focus:ring-[#ea2127]/20 resize-none transition-all"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={saveMessage}
+                              disabled={savingMessage || !editedMessage.trim()}
+                              className="px-4 py-2 bg-[#ea2127] hover:bg-[#d91e24] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {savingMessage ? 'Saving...' : 'Save Message'}
+                            </button>
+                            <button
+                              onClick={() => setIsEditingMessage(false)}
+                              className="px-4 py-2 bg-[#2a2a35] hover:bg-[#3a3a48] text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-white text-base leading-relaxed">
+                            {messageOfTheDay?.message || 'No message set. Click edit to add one.'}
+                          </p>
+                          {messageOfTheDay?.updated_by_name && (
+                            <p className="text-[#4a4a58] text-xs mt-2">
+                              Last updated by {messageOfTheDay!.updated_by_name} · {messageOfTheDay!.updated_at ? new Date(messageOfTheDay!.updated_at).toLocaleDateString() : ''}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Edit button - only for Super Admin and Boss */}
+                  {canEditMessage && !isEditingMessage && (
+                    <button
+                      onClick={() => {
+                        setEditedMessage(messageOfTheDay?.message || '');
+                        setIsEditingMessage(true);
+                      }}
+                      className="shrink-0 p-2 text-[#6b6b7a] hover:text-white hover:bg-[#2a2a35] rounded-lg transition-all"
+                      title="Edit message"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Main Navigation Cards */}
         <section

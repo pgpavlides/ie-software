@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import supabase from '../lib/supabase';
 
 interface Category {
@@ -34,6 +35,7 @@ interface InventoryItem {
 }
 
 export default function OrderListPage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,6 +204,15 @@ export default function OrderListPage() {
         {/* Header */}
         <header className="mb-8 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]">
           <div className="flex items-center gap-3 mb-2">
+            {/* Back Button */}
+            <button
+              onClick={() => navigate('/inventory')}
+              className="shrink-0 w-10 h-10 flex items-center justify-center bg-[#1a1a23] hover:bg-[#252530] text-[#8b8b9a] hover:text-white rounded-xl transition-all border border-[#2a2a35]"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ef4444] to-[#dc2626] flex items-center justify-center shadow-lg shadow-[#ef4444]/20">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import CommandLine from './CommandLine';
 import { useViewAsStore } from '../store/viewAsStore';
+import { FiHome, FiClock, FiCheckSquare, FiUser } from 'react-icons/fi';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,11 +12,27 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigate }) => {
   const [isCommandLineOpen, setIsCommandLineOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { viewAsRole, clearViewAs, isViewingAs } = useViewAsStore();
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close mobile sidebar when navigating
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [currentView]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      console.log(e.key);
       if (e.ctrlKey && e.key === '`') {
         setIsCommandLineOpen(prev => !prev);
       }
@@ -28,13 +45,33 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigate }) =>
     };
   }, []);
 
+  // Bottom navigation items for mobile
+  const bottomNavItems = [
+    { id: 'dashboard', icon: FiHome, label: 'Home' },
+    { id: 'overtimes', icon: FiClock, label: 'Overtimes' },
+    { id: 'tasks', icon: FiCheckSquare, label: 'Tasks' },
+    { id: 'profile', icon: FiUser, label: 'Profile' },
+  ];
+
+  const handleBottomNavClick = (id: string) => {
+    if (id === 'profile') {
+      onNavigate('profile');
+    } else {
+      onNavigate(id);
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-screen bg-[#0f0f12]">
+      {/* Sidebar - hidden on mobile by default, shown as overlay when open */}
       <Sidebar
         currentView={currentView}
         onNavigate={onNavigate}
         onToggleCommandLine={() => setIsCommandLineOpen(prev => !prev)}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
+
       <main className="flex-1 overflow-auto flex flex-col">
         {/* ViewAs Mode Indicator Banner */}
         {isViewingAs() && viewAsRole && (
@@ -47,8 +84,8 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigate }) =>
                 </svg>
                 <span className="text-white font-semibold text-sm">VIEW AS MODE</span>
               </div>
-              <div className="h-4 w-px bg-white/30" />
-              <div className="flex items-center gap-2">
+              <div className="h-4 w-px bg-white/30 hidden sm:block" />
+              <div className="flex items-center gap-2 hidden sm:flex">
                 <span className="text-white/80 text-sm">Viewing as:</span>
                 <span
                   className="px-2 py-0.5 rounded-full text-xs font-bold"
@@ -73,14 +110,47 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigate }) =>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-              Exit View As
+              <span className="hidden sm:inline">Exit View As</span>
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-auto">
+
+        {/* Main Content */}
+        <div className={`flex-1 overflow-auto ${isMobile ? 'pb-16' : ''}`}>
           {children}
         </div>
+
+        {/* Mobile Bottom Navigation */}
+        {isMobile && (
+          <nav className="fixed bottom-0 left-0 right-0 bg-[#0f0f12] border-t border-[#1f1f28] z-30 safe-area-bottom">
+            <div className="flex items-center justify-around h-16">
+              {bottomNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentView === item.id ||
+                  (item.id === 'profile' && currentView === 'profile');
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleBottomNavClick(item.id)}
+                    className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                      isActive
+                        ? 'text-[#ea2127]'
+                        : 'text-[#6b6b7a] active:text-white'
+                    }`}
+                  >
+                    <Icon className={`w-6 h-6 ${isActive ? 'scale-110' : ''} transition-transform`} />
+                    <span className={`text-xs mt-1 font-medium ${isActive ? '' : 'opacity-80'}`}>
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </main>
+
       <CommandLine
         isOpen={isCommandLineOpen}
         onClose={() => setIsCommandLineOpen(false)}

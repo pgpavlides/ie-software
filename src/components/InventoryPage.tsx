@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../lib/supabase';
+import { useViewAsStore } from '../store/viewAsStore';
 
 interface Category {
   id: string;
@@ -9,6 +10,57 @@ interface Category {
   color: string;
   icon: string;
 }
+
+// Map category names to icon file names
+const getCategoryIconPath = (category?: Category): string | null => {
+  if (!category) return null;
+
+  // Try to match category name_en to icon file
+  const nameEn = category.name_en?.toUpperCase().replace(/\s+/g, '_');
+  const name = category.name?.toUpperCase().replace(/\s+/g, '_');
+
+  const iconMap: Record<string, string> = {
+    'CABLES': '/electronic_inventory_icons/CABLES.svg',
+    'CABLE': '/electronic_inventory_icons/CABLES.svg',
+    'GENERAL_MATERIALS': '/electronic_inventory_icons/GENERAL_MATERIALS.svg',
+    'GENERAL MATERIALS': '/electronic_inventory_icons/GENERAL_MATERIALS.svg',
+    'MATERIALS': '/electronic_inventory_icons/MATERIALS.svg',
+    'MATERIAL': '/electronic_inventory_icons/MATERIALS.svg',
+    'MONITORS': '/electronic_inventory_icons/MONITORS.svg',
+    'MONITOR': '/electronic_inventory_icons/MONITORS.svg',
+    'PANELS': '/electronic_inventory_icons/PANELS.svg',
+    'PANEL': '/electronic_inventory_icons/PANELS.svg',
+    'PCBS': '/electronic_inventory_icons/PCBS.svg',
+    'PCB': '/electronic_inventory_icons/PCBS.svg',
+    'TOOLS': '/electronic_inventory_icons/TOOLS.svg',
+    'TOOL': '/electronic_inventory_icons/TOOLS.svg',
+    'UGREEN': '/electronic_inventory_icons/UGREEN.svg',
+  };
+
+  return iconMap[nameEn] || iconMap[name] || null;
+};
+
+// Category icon component
+const CategoryIcon = ({ category, className = "w-10 h-10" }: { category?: Category; className?: string }) => {
+  const iconPath = getCategoryIconPath(category);
+
+  if (iconPath) {
+    return (
+      <img
+        src={iconPath}
+        alt={category?.name_en || category?.name || 'Category'}
+        className={`${className} object-contain`}
+      />
+    );
+  }
+
+  // Fallback to emoji if no SVG icon
+  return (
+    <span className={`${className} flex items-center justify-center text-2xl`}>
+      {category?.icon || '📦'}
+    </span>
+  );
+};
 
 interface Distributor {
   id: string;
@@ -57,25 +109,18 @@ interface GlobalStats {
   categories: number;
 }
 
-// Category icons mapping
-const categoryIcons: Record<string, string> = {
-  'Υλικά': '🔧',
-  'Materials': '🔧',
-  'Πίνακες': '📋',
-  'Panels': '📋',
-  'Καλώδια': '🔌',
-  'Cables': '🔌',
-  'UGREEN': '🟢',
-  'GM': '🎮',
-  'Monitors': '🖥️',
-  'Εργαλεία': '🛠️',
-  'Tools': '🛠️',
-  'Πλακέτες': '💾',
-  'PCBs': '💾',
-};
-
 export default function InventoryPage() {
   const navigate = useNavigate();
+  const { getEffectiveRoles } = useViewAsStore();
+  const effectiveRoles = getEffectiveRoles();
+
+  // Permission checks
+  const canEdit = effectiveRoles.some(role =>
+    ['Super Admin', 'Admin', 'Head of Electronics'].includes(role)
+  );
+  const isElectronicsOnly = effectiveRoles.includes('Electronics') && !canEdit;
+  const canMarkNeedsOrder = !isElectronicsOnly;
+
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [distributors, setDistributors] = useState<Distributor[]>([]);
@@ -84,18 +129,20 @@ export default function InventoryPage() {
   // View state
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [showNeedsOrderOnly, setShowNeedsOrderOnly] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [showReportedOnly, setShowReportedOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() =>
+    window.innerWidth < 1024 ? 'grid' : 'list'
+  );
 
-  // Order quantities (item id -> quantity to order) - persisted to localStorage
-  const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>(() => {
-    // Load from localStorage on initial render
+  // Order quantities
+  const [orderQuantities] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('inventoryOrderQuantities');
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Persist order quantities to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('inventoryOrderQuantities', JSON.stringify(orderQuantities));
   }, [orderQuantities]);
@@ -108,6 +155,17 @@ export default function InventoryPage() {
   const [editLink, setEditLink] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
+  // Notifications state
+  const [notifications, setNotifications] = useState<{id: string; item_id: string; reporter_name: string; created_at: string}[]>([]);
+  const [reportedItems, setReportedItems] = useState<Set<string>>(new Set());
+  const [reportingItems, setReportingItems] = useState<Set<string>>(new Set());
+
+  // Confirmation dialogs
+  const [showReportConfirmation, setShowReportConfirmation] = useState(false);
+  const [confirmedItemName, setConfirmedItemName] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [itemToReport, setItemToReport] = useState<InventoryItem | null>(null);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -118,37 +176,100 @@ export default function InventoryPage() {
       const [itemsRes, categoriesRes, distributorsRes] = await Promise.all([
         supabase
           .from('inventory_items')
-          .select(`
-            *,
-            category:inventory_categories(*),
-            distributor:inventory_distributors(*)
-          `)
+          .select(`*, category:inventory_categories(*), distributor:inventory_distributors(*)`)
           .eq('is_active', true)
           .order('category_id')
           .order('item_number'),
-        supabase
-          .from('inventory_categories')
-          .select('*')
-          .eq('is_active', true)
-          .order('display_order'),
-        supabase
-          .from('inventory_distributors')
-          .select('*')
-          .eq('is_active', true)
-          .order('name'),
+        supabase.from('inventory_categories').select('*').eq('is_active', true).order('name'),
+        supabase.from('inventory_distributors').select('*').eq('is_active', true).order('name')
       ]);
 
       if (itemsRes.data) setItems(itemsRes.data);
       if (categoriesRes.data) setCategories(categoriesRes.data);
       if (distributorsRes.data) setDistributors(distributorsRes.data);
     } catch (error) {
-      console.error('Error fetching inventory data:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate stats per category
+  // Fetch notifications
+  useEffect(() => {
+    if (canEdit) fetchNotifications();
+  }, [canEdit]);
+
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await supabase
+        .from('inventory_notifications')
+        .select('id, item_id, reporter_name, created_at')
+        .eq('is_read', false)
+        .order('created_at', { ascending: false });
+      if (data) setNotifications(data);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const openReportConfirmDialog = (item: InventoryItem) => {
+    setItemToReport(item);
+    setShowConfirmDialog(true);
+  };
+
+  const reportLowStock = async (item: InventoryItem) => {
+    setShowConfirmDialog(false);
+    setItemToReport(null);
+    try {
+      setReportingItems(prev => new Set([...prev, item.id]));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setReportingItems(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+        return;
+      }
+
+      let reporterName = 'Unknown';
+      const { data: userData } = await supabase
+        .from('users')
+        .select('display_name, username, email')
+        .eq('id', user.id)
+        .single();
+
+      if (userData) {
+        reporterName = userData.display_name || userData.username || userData.email?.split('@')[0] || 'Unknown';
+      }
+
+      await supabase.from('inventory_notifications').insert({
+        item_id: item.id,
+        reported_by: user.id,
+        reporter_name: reporterName,
+        message: `Low stock reported for: ${item.description}`
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setReportingItems(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+      setReportedItems(prev => new Set([...prev, item.id]));
+      setConfirmedItemName(item.description);
+      setShowReportConfirmation(true);
+      setTimeout(() => setShowReportConfirmation(false), 3000);
+    } catch (error) {
+      console.error('Error reporting:', error);
+      setReportingItems(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+    }
+  };
+
+  const dismissNotification = async (notificationId: string) => {
+    try {
+      await supabase.from('inventory_notifications').update({ is_read: true }).eq('id', notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    } catch (error) {
+      console.error('Error dismissing:', error);
+    }
+  };
+
+  const getItemNotifications = (itemId: string) => notifications.filter(n => n.item_id === itemId);
+
+  // Stats calculations
   const categoryStats = useMemo((): CategoryStats[] => {
     return categories.map(cat => {
       const categoryItems = items.filter(i => i.category_id === cat.id);
@@ -159,39 +280,65 @@ export default function InventoryPage() {
         color: cat.color,
         icon: cat.icon,
         itemCount: categoryItems.length,
-        totalStock: categoryItems.reduce((sum, i) => sum + (i.stock_quantity || 0), 0),
+        totalStock: categoryItems.reduce((sum, i) => sum + i.stock_quantity, 0),
         lowStockCount: categoryItems.filter(i => i.min_stock_threshold > 0 && i.stock_quantity <= i.min_stock_threshold).length,
-        needsOrderCount: categoryItems.filter(i => i.needs_order).length,
+        needsOrderCount: categoryItems.filter(i => i.needs_order).length
       };
     });
   }, [categories, items]);
 
-  // Global stats
-  const globalStats = useMemo((): GlobalStats => {
-    return {
-      totalItems: items.length,
-      totalStock: items.reduce((sum, i) => sum + (i.stock_quantity || 0), 0),
-      lowStockItems: items.filter(i => i.min_stock_threshold > 0 && i.stock_quantity <= i.min_stock_threshold).length,
-      needsOrderItems: items.filter(i => i.needs_order).length,
-      categories: categories.length,
-    };
-  }, [items, categories]);
+  const globalStats = useMemo((): GlobalStats => ({
+    totalItems: items.length,
+    totalStock: items.reduce((sum, i) => sum + i.stock_quantity, 0),
+    lowStockItems: items.filter(i => i.min_stock_threshold > 0 && i.stock_quantity <= i.min_stock_threshold).length,
+    needsOrderItems: items.filter(i => i.needs_order).length,
+    categories: categories.length
+  }), [items, categories]);
 
-  // Filter items for detailed view
+  // Global search across ALL items
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase();
+    return items.filter(item =>
+      item.description.toLowerCase().includes(query) ||
+      item.description_en?.toLowerCase().includes(query) ||
+      item.brand?.toLowerCase().includes(query) ||
+      item.location?.toLowerCase().includes(query) ||
+      item.category?.name.toLowerCase().includes(query) ||
+      item.category?.name_en.toLowerCase().includes(query)
+    ).slice(0, 15);
+  }, [searchQuery, items]);
+
+  // Get reported item IDs for filtering
+  const reportedItemIds = useMemo(() => new Set(notifications.map(n => n.item_id)), [notifications]);
+
   const filteredItems = useMemo(() => {
-    return items.filter(item => {
-      const matchesSearch = searchQuery === '' ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.location?.toLowerCase().includes(searchQuery.toLowerCase());
+    let result = items;
+    if (selectedCategory && selectedCategory !== '_filter') result = result.filter(i => i.category_id === selectedCategory);
+    if (showLowStockOnly) result = result.filter(i => i.min_stock_threshold > 0 && i.stock_quantity <= i.min_stock_threshold);
+    if (showNeedsOrderOnly) result = result.filter(i => i.needs_order);
+    if (showReportedOnly) result = result.filter(i => reportedItemIds.has(i.id));
+    return result;
+  }, [items, selectedCategory, showLowStockOnly, showNeedsOrderOnly, showReportedOnly, reportedItemIds]);
 
-      const matchesCategory = !selectedCategory || item.category_id === selectedCategory;
-      const matchesLowStock = !showLowStockOnly || (item.min_stock_threshold > 0 && item.stock_quantity <= item.min_stock_threshold);
-      const matchesNeedsOrder = !showNeedsOrderOnly || item.needs_order;
+  const orderListCount = useMemo(() => items.filter(i => i.needs_order).length, [items]);
 
-      return matchesSearch && matchesCategory && matchesLowStock && matchesNeedsOrder;
-    });
-  }, [items, searchQuery, selectedCategory, showLowStockOnly, showNeedsOrderOnly]);
+  const getStockStatus = (item: InventoryItem) => {
+    if (item.stock_quantity === 0) return { color: '#ef4444', label: 'Out of Stock', bg: 'bg-red-500/15', border: 'border-red-500/30' };
+    if (item.min_stock_threshold > 0 && item.stock_quantity <= item.min_stock_threshold) return { color: '#f59e0b', label: 'Low Stock', bg: 'bg-amber-500/15', border: 'border-amber-500/30' };
+    return { color: '#22c55e', label: 'In Stock', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' };
+  };
+
+  const toggleNeedsOrder = async (item: InventoryItem) => {
+    const newValue = !item.needs_order;
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, needs_order: newValue } : i));
+    try {
+      const { error } = await supabase.from('inventory_items').update({ needs_order: newValue }).eq('id', item.id);
+      if (error) setItems(prev => prev.map(i => i.id === item.id ? { ...i, needs_order: !newValue } : i));
+    } catch {
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, needs_order: !newValue } : i));
+    }
+  };
 
   const openEditModal = (item: InventoryItem) => {
     setEditingItem(item);
@@ -203,886 +350,751 @@ export default function InventoryPage() {
 
   const updateItem = async () => {
     if (!editingItem) return;
-
     setSaving(true);
-    const previousItem = { ...editingItem };
-
-    // Find the new distributor object for optimistic update
-    const newDistributor = editDistributorId
-      ? distributors.find(d => d.id === editDistributorId)
-      : undefined;
-
-    // Optimistic update
-    setItems(prevItems =>
-      prevItems.map(i =>
-        i.id === editingItem.id
-          ? {
-              ...i,
-              stock_quantity: editStock,
-              location: editLocation || null,
-              distributor_id: editDistributorId || null,
-              distributor: newDistributor,
-              link: editLink || null,
-              last_inventory_date: new Date().toISOString().split('T')[0],
-            }
-          : i
-      )
-    );
-
-    setEditingItem(null);
-
     try {
-      const updates: Record<string, unknown> = {
+      const { error } = await supabase.from('inventory_items').update({
         stock_quantity: editStock,
         location: editLocation || null,
         distributor_id: editDistributorId || null,
         link: editLink || null,
-        last_inventory_date: new Date().toISOString().split('T')[0],
-      };
+        last_inventory_date: new Date().toISOString()
+      }).eq('id', editingItem.id);
 
-      const { error } = await supabase
-        .from('inventory_items')
-        .update(updates)
-        .eq('id', editingItem.id);
-
-      if (error) {
-        // Revert on error
-        setItems(prevItems =>
-          prevItems.map(i =>
-            i.id === previousItem.id ? previousItem : i
-          )
-        );
-        console.error('Error updating item:', error);
-        return;
-      }
-
-      // Log stock change if it changed
-      if (editStock !== previousItem.stock_quantity) {
-        await supabase.from('inventory_history').insert({
-          item_id: editingItem.id,
-          action: 'stock_update',
-          previous_quantity: previousItem.stock_quantity,
-          new_quantity: editStock,
-        });
+      if (!error) {
+        setItems(prev => prev.map(i => i.id === editingItem.id ? {
+          ...i,
+          stock_quantity: editStock,
+          location: editLocation || null,
+          distributor_id: editDistributorId || null,
+          link: editLink || null,
+          distributor: distributors.find(d => d.id === editDistributorId) || undefined
+        } : i));
+        setEditingItem(null);
       }
     } catch (error) {
-      // Revert on error
-      setItems(prevItems =>
-        prevItems.map(i =>
-          i.id === previousItem.id ? previousItem : i
-        )
-      );
-      console.error('Error updating item:', error);
+      console.error('Error:', error);
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleNeedsOrder = async (item: InventoryItem) => {
-    const newValue = !item.needs_order;
-
-    // Optimistic update - update local state immediately
-    setItems(prevItems =>
-      prevItems.map(i =>
-        i.id === item.id ? { ...i, needs_order: newValue } : i
-      )
-    );
-
-    // Set default order quantity to 1 when adding to order list
-    if (newValue && !orderQuantities[item.id]) {
-      setOrderQuantities(prev => ({ ...prev, [item.id]: 1 }));
-    }
-
-    try {
-      const { error } = await supabase
-        .from('inventory_items')
-        .update({ needs_order: newValue })
-        .eq('id', item.id);
-
-      if (error) {
-        // Revert on error
-        setItems(prevItems =>
-          prevItems.map(i =>
-            i.id === item.id ? { ...i, needs_order: !newValue } : i
-          )
-        );
-        console.error('Error updating order status:', error);
-      }
-    } catch (error) {
-      // Revert on error
-      setItems(prevItems =>
-        prevItems.map(i =>
-          i.id === item.id ? { ...i, needs_order: !newValue } : i
-        )
-      );
-      console.error('Error updating order status:', error);
-    }
-  };
-
-  const updateOrderQuantity = (itemId: string, quantity: number) => {
-    setOrderQuantities(prev => ({
-      ...prev,
-      [itemId]: Math.max(1, quantity)
-    }));
-  };
-
-  // Get count of items in order list
-  const orderListCount = useMemo(() => {
-    return items.filter(item => item.needs_order).length;
-  }, [items]);
-
-  const getStockStatus = (item: InventoryItem) => {
-    if (item.stock_quantity === 0) return { color: '#ef4444', label: 'Out of Stock' };
-    if (item.min_stock_threshold > 0 && item.stock_quantity <= item.min_stock_threshold) return { color: '#f59e0b', label: 'Low Stock' };
-    return { color: '#10b981', label: 'In Stock' };
-  };
-
-  const getCategoryIcon = (cat: CategoryStats) => {
-    return categoryIcons[cat.name] || categoryIcons[cat.name_en] || '📦';
-  };
-
-  const handleCategoryClick = (categoryId: string) => {
-    setSelectedCategory(categoryId);
+  const handleSelectItem = (item: InventoryItem) => {
     setSearchQuery('');
-    setShowLowStockOnly(false);
-    setShowNeedsOrderOnly(false);
+    setShowSearchResults(false);
+    if (item.category_id) setSelectedCategory(item.category_id);
   };
-
-  const handleBackToDashboard = () => {
-    setSelectedCategory(null);
-    setSearchQuery('');
-    setShowLowStockOnly(false);
-    setShowNeedsOrderOnly(false);
-  };
-
-  const selectedCategoryData = selectedCategory
-    ? categoryStats.find(c => c.id === selectedCategory)
-    : null;
 
   if (loading) {
     return (
       <div className="min-h-full bg-[#0f0f12] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-2 border-[#06b6d4] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#6b6b7a]">Loading inventory...</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-[#2a2a35] border-t-[#ea2127] rounded-full animate-spin" />
+          <span className="text-[#6b6b7a] text-sm font-medium">Loading inventory...</span>
         </div>
       </div>
     );
   }
 
+  const selectedCategoryData = categoryStats.find(c => c.id === selectedCategory);
+
   return (
-    <div className="min-h-full bg-[#0f0f12] relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-50" />
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#06b6d4] rounded-full blur-[200px] opacity-[0.03]" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#8b5cf6] rounded-full blur-[200px] opacity-[0.02]" />
-
-      <div className="relative z-10 p-6 lg:p-10 max-w-[1600px] mx-auto">
-        {/* Header */}
-        <header className="mb-8 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]">
-          <div className="flex items-center gap-3 mb-2">
-            {selectedCategory && (
-              <button
-                onClick={handleBackToDashboard}
-                className="w-10 h-10 rounded-xl bg-[#1f1f28] hover:bg-[#2a2a38] flex items-center justify-center transition-colors"
-              >
-                <svg className="w-5 h-5 text-[#6b6b7a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            )}
-            <div className="w-1 h-8 bg-[#06b6d4] rounded-full" />
-            <h1 className="text-2xl lg:text-3xl font-bold text-white">
-              {selectedCategory ? (selectedCategoryData?.name_en || selectedCategoryData?.name) : 'Inventory'}
-            </h1>
+    <div className="min-h-full bg-[#0f0f12]">
+      {/* Mobile Header - Simple with search */}
+      <div className="sm:hidden sticky top-0 z-40 bg-[#0f0f12] border-b border-[#1f1f28] px-4 py-3">
+        <div className="flex items-center gap-3">
+          {(selectedCategory || showLowStockOnly || showNeedsOrderOnly || showReportedOnly) && (
+            <button
+              onClick={() => { setSelectedCategory(null); setShowLowStockOnly(false); setShowNeedsOrderOnly(false); setShowReportedOnly(false); }}
+              className="shrink-0 w-9 h-9 flex items-center justify-center bg-[#1a1a23] text-[#8b8b9a] rounded-lg border border-[#2a2a35]"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+          {/* Mobile Search */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder={
+                showNeedsOrderOnly ? 'Order List' :
+                showLowStockOnly ? 'Low Stock Items' :
+                showReportedOnly ? 'Reported Items' :
+                selectedCategory ? (selectedCategoryData?.name_en || 'Search...') :
+                'Search inventory...'
+              }
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setShowSearchResults(true); }}
+              onFocus={() => setShowSearchResults(true)}
+              className="w-full h-10 pl-10 pr-4 bg-[#1a1a23] border border-[#2a2a35] rounded-lg text-white text-sm placeholder:text-[#6b6b7a] focus:outline-none focus:border-[#ea2127]"
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b6b7a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
-          <p className="text-[#6b6b7a] ml-4">
-            {selectedCategory
-              ? `${selectedCategoryData?.itemCount} items in this category`
-              : 'Track components, stock levels, and orders'
-            }
-          </p>
-        </header>
+        </div>
 
-        {!selectedCategory ? (
-          /* Dashboard View */
-          <>
-            {/* Global Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '100ms' }}>
-              <div className="bg-[#141418] border border-[#1f1f28] rounded-xl p-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#1d4ed8] flex items-center justify-center shadow-lg shadow-[#3b82f6]/20">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">{globalStats.totalItems}</p>
-                    <p className="text-sm text-[#6b6b7a]">Total Items</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#141418] border border-[#1f1f28] rounded-xl p-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#10b981] to-[#059669] flex items-center justify-center shadow-lg shadow-[#10b981]/20">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">{globalStats.totalStock.toLocaleString()}</p>
-                    <p className="text-sm text-[#6b6b7a]">In Stock</p>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="bg-[#141418] border border-[#1f1f28] rounded-xl p-5 cursor-pointer hover:border-[#f59e0b]/50 transition-all group"
-                onClick={() => {
-                  setShowLowStockOnly(true);
-                  setSelectedCategory('');
-                }}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#f59e0b] to-[#d97706] flex items-center justify-center shadow-lg shadow-[#f59e0b]/20 group-hover:scale-110 transition-transform">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-[#f59e0b]">{globalStats.lowStockItems}</p>
-                    <p className="text-sm text-[#6b6b7a]">Low Stock</p>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="bg-[#141418] border border-[#1f1f28] rounded-xl p-5 cursor-pointer hover:border-[#ef4444]/50 transition-all group"
-                onClick={() => {
-                  setShowNeedsOrderOnly(true);
-                  setSelectedCategory('');
-                }}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ef4444] to-[#dc2626] flex items-center justify-center shadow-lg shadow-[#ef4444]/20 group-hover:scale-110 transition-transform">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-[#ef4444]">{globalStats.needsOrderItems}</p>
-                    <p className="text-sm text-[#6b6b7a]">Needs Order</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Category Grid */}
-            <div className="mb-6 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '200ms' }}>
-              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <svg className="w-5 h-5 text-[#6b6b7a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-                Categories
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {categoryStats.map((cat, index) => (
-                  <div
-                    key={cat.id}
-                    onClick={() => handleCategoryClick(cat.id)}
-                    className="group bg-[#141418] border border-[#1f1f28] rounded-2xl p-5 cursor-pointer hover:border-opacity-50 transition-all hover:scale-[1.02] hover:shadow-xl opacity-0 animate-[fadeSlideIn_0.4s_ease-out_forwards]"
-                    style={{
-                      animationDelay: `${300 + index * 50}ms`,
-                      borderColor: `${cat.color}30`,
-                    }}
-                  >
-                    {/* Category Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div
-                        className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-lg transition-transform group-hover:scale-110"
-                        style={{
-                          background: `linear-gradient(135deg, ${cat.color}40, ${cat.color}20)`,
-                          boxShadow: `0 8px 24px ${cat.color}20`,
-                        }}
-                      >
-                        {getCategoryIcon(cat)}
-                      </div>
-                      {cat.lowStockCount > 0 && (
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#f59e0b]/20 text-[#f59e0b] text-xs font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] animate-pulse" />
-                          {cat.lowStockCount} low
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Category Name */}
-                    <h3 className="text-lg font-semibold text-white mb-4 group-hover:text-[#06b6d4] transition-colors">
-                      {cat.name}
-                    </h3>
-
-                    {/* Stats Row */}
-                    <div className="flex items-center justify-between pt-4 border-t border-[#1f1f28]">
-                      <div className="text-center">
-                        <p className="text-xl font-bold text-white">{cat.itemCount}</p>
-                        <p className="text-xs text-[#6b6b7a]">Items</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xl font-bold" style={{ color: cat.color }}>{cat.totalStock.toLocaleString()}</p>
-                        <p className="text-xs text-[#6b6b7a]">In Stock</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xl font-bold text-[#ef4444]">{cat.needsOrderCount}</p>
-                        <p className="text-xs text-[#6b6b7a]">To Order</p>
-                      </div>
-                    </div>
-
-                    {/* Hover Arrow */}
-                    <div className="flex justify-end mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg className="w-5 h-5 text-[#6b6b7a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : (
-          /* Items List View */
-          <>
-            {/* Filters */}
-            <div className="flex flex-col lg:flex-row gap-4 mb-6 opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '100ms' }}>
-              {/* Search */}
-              <div className="relative flex-1 max-w-md">
-                <input
-                  type="text"
-                  placeholder="Search items, brands, locations..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-3 pl-12 bg-[#141418] border border-[#2a2a35] rounded-xl text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#06b6d4]/50 focus:ring-2 focus:ring-[#06b6d4]/20 transition-all"
-                />
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#5a5a68]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-
-              {/* Quick Filters */}
-              <div className="flex gap-2">
+        {/* Mobile Search Results */}
+        {showSearchResults && searchQuery && searchResults.length > 0 && (
+          <div className="absolute left-4 right-4 top-full mt-1 bg-[#1a1a23] border border-[#2a2a35] rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto z-50">
+            {searchResults.map((item) => {
+              const status = getStockStatus(item);
+              return (
                 <button
-                  onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    showLowStockOnly
-                      ? 'bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/50'
-                      : 'bg-[#1f1f28] text-[#6b6b7a] hover:text-white border border-transparent'
-                  }`}
+                  key={item.id}
+                  onClick={() => handleSelectItem(item)}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#252530] text-left border-b border-[#2a2a35]/50 last:border-0"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  Low Stock
+                  <CategoryIcon category={item.category} className="w-6 h-6 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{item.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono text-sm text-white">{item.stock_quantity}</span>
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
+                  </div>
                 </button>
-                <button
-                  onClick={() => setShowNeedsOrderOnly(!showNeedsOrderOnly)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    showNeedsOrderOnly
-                      ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/50'
-                      : 'bg-[#1f1f28] text-[#6b6b7a] hover:text-white border border-transparent'
-                  }`}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  Needs Order
-                </button>
-              </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-              {/* View Toggle & Order List */}
-              <div className="flex items-center gap-2 ml-auto">
-                <div className="flex gap-1 bg-[#1f1f28] p-1 rounded-lg">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-md transition-colors ${
-                      viewMode === 'grid'
-                        ? 'bg-[#06b6d4] text-white'
-                        : 'text-[#6b6b7a] hover:text-white'
-                    }`}
-                    title="Grid view"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`p-2 rounded-md transition-colors ${
-                      viewMode === 'table'
-                        ? 'bg-[#06b6d4] text-white'
-                        : 'text-[#6b6b7a] hover:text-white'
-                    }`}
-                    title="Table view"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Order List Button */}
+      {/* Desktop Header Section */}
+      <div className="hidden sm:block sticky top-0 z-40 bg-[#0f0f12]/95 backdrop-blur-md border-b border-[#1f1f28]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Title & Search Row */}
+          <div className="py-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {(selectedCategory || showLowStockOnly || showNeedsOrderOnly || showReportedOnly) && (
                 <button
-                  onClick={() => navigate('/order-list')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    orderListCount > 0
-                      ? 'bg-[#ef4444] text-white hover:bg-[#dc2626]'
-                      : 'bg-[#1f1f28] text-[#6b6b7a] hover:text-white'
-                  }`}
+                  onClick={() => { setSelectedCategory(null); setShowLowStockOnly(false); setShowNeedsOrderOnly(false); setShowReportedOnly(false); }}
+                  className="shrink-0 w-9 h-9 flex items-center justify-center bg-[#1a1a23] hover:bg-[#252530] text-[#8b8b9a] hover:text-white rounded-lg transition-all border border-[#2a2a35]"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                  Order List
-                  {orderListCount > 0 && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
-                      {orderListCount}
-                    </span>
-                  )}
                 </button>
+              )}
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate font-display">
+                  {showNeedsOrderOnly ? 'Order List' :
+                   showLowStockOnly ? 'Low Stock Items' :
+                   showReportedOnly ? 'Reported Items' :
+                   selectedCategory ? (selectedCategoryData?.name_en || selectedCategoryData?.name) :
+                   'Inventory'}
+                </h1>
               </div>
             </div>
 
-            {/* Grid View */}
-            {viewMode === 'grid' && (
-              <div className="opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '200ms' }}>
-                {filteredItems.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {filteredItems.map((item, index) => {
-                      const status = getStockStatus(item);
-                      return (
-                        <div
-                          key={item.id}
-                          className="group bg-[#141418] border border-[#1f1f28] rounded-xl p-4 hover:border-[#2a2a38] transition-all hover:shadow-lg opacity-0 animate-[fadeSlideIn_0.3s_ease-out_forwards]"
-                          style={{ animationDelay: `${200 + index * 30}ms` }}
-                        >
-                          {/* Status Badge & Order Button */}
-                          <div className="flex items-start justify-between mb-3">
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium"
-                              style={{
-                                backgroundColor: `${status.color}20`,
-                                color: status.color,
-                              }}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
-                              {status.label}
-                            </span>
-                            {/* Fixed width container to prevent layout shift */}
-                            <div className="flex items-center gap-1 w-[88px] justify-end">
-                              <input
-                                type="number"
-                                min="1"
-                                value={orderQuantities[item.id] || 1}
-                                onChange={(e) => updateOrderQuantity(item.id, parseInt(e.target.value) || 1)}
-                                onClick={(e) => e.stopPropagation()}
-                                className={`w-12 px-1 py-1 bg-[#1f1f28] border border-[#ef4444]/30 rounded-lg text-white text-center text-sm font-mono focus:outline-none focus:border-[#ef4444] transition-all ${
-                                  item.needs_order ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                                }`}
-                              />
-                              <button
-                                onClick={() => toggleNeedsOrder(item)}
-                                className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
-                                  item.needs_order
-                                    ? 'bg-[#ef4444]/20 text-[#ef4444] hover:bg-[#ef4444]/30'
-                                    : 'bg-[#1f1f28] text-[#6b6b7a] hover:text-white hover:bg-[#2a2a38]'
-                                }`}
-                                title={item.needs_order ? 'Remove from order list' : 'Add to order list'}
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
+            {/* Global Search */}
+            <div className="relative w-full sm:w-80">
+              <input
+                type="text"
+                placeholder="Search items..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setShowSearchResults(true); }}
+                onFocus={() => setShowSearchResults(true)}
+                className="w-full h-11 pl-11 pr-10 bg-[#1a1a23] border border-[#2a2a35] hover:border-[#3a3a48] focus:border-[#ea2127] rounded-xl text-white text-sm placeholder:text-[#6b6b7a] focus:outline-none focus:ring-2 focus:ring-[#ea2127]/20 transition-all font-mono"
+              />
+              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#6b6b7a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setShowSearchResults(false); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#6b6b7a] hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
 
-                          {/* Item Description */}
-                          <h3 className="font-medium text-white text-sm leading-tight mb-2 line-clamp-2 min-h-[2.5rem]">
-                            {item.description}
-                          </h3>
-
-                          {/* Brand & Location */}
-                          <div className="flex items-center gap-2 text-xs text-[#6b6b7a] mb-3">
-                            {item.brand && (
-                              <span className="bg-[#1f1f28] px-2 py-0.5 rounded">{item.brand}</span>
-                            )}
-                            {item.location && (
-                              <span className="flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                {item.location}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Stock Quantity */}
-                          <div className="flex items-center justify-between py-3 border-t border-[#1f1f28]">
-                            <div>
-                              <span className="font-mono text-2xl font-bold text-white">
-                                {item.stock_quantity}
-                              </span>
-                              <span className="text-[#6b6b7a] text-sm ml-1">{item.stock_unit}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => openEditModal(item)}
-                                className="p-2 bg-[#1f1f28] text-[#6b6b7a] hover:text-white hover:bg-[#2a2a38] rounded-lg transition-colors"
-                                title="Edit item"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
-                              {item.link && (
-                                <a
-                                  href={item.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-2 bg-[#1f1f28] text-[#6b6b7a] hover:text-[#06b6d4] hover:bg-[#2a2a38] rounded-lg transition-colors"
-                                  title="View product"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                  </svg>
-                                </a>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Distributor */}
-                          {item.distributor && (
-                            <div className="pt-2 border-t border-[#1f1f28]">
-                              {item.distributor.website ? (
-                                <a
-                                  href={item.distributor.website}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[#06b6d4] hover:underline text-xs flex items-center gap-1"
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                  </svg>
-                                  {item.distributor.name}
-                                </a>
-                              ) : (
-                                <span className="text-[#6b6b7a] text-xs flex items-center gap-1">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                  </svg>
-                                  {item.distributor.name}
-                                </span>
-                              )}
-                            </div>
-                          )}
+              {/* Search Results Dropdown */}
+              {showSearchResults && searchQuery && searchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-[#1a1a23] border border-[#2a2a35] rounded-xl shadow-2xl shadow-black/50 overflow-hidden max-h-[400px] overflow-y-auto z-50">
+                  <div className="px-4 py-2 border-b border-[#2a2a35]">
+                    <span className="text-xs text-[#6b6b7a] font-medium">{searchResults.length} results</span>
+                  </div>
+                  {searchResults.map((item) => {
+                    const status = getStockStatus(item);
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSelectItem(item)}
+                        className="w-full px-4 py-3 flex items-center gap-4 hover:bg-[#252530] transition-colors text-left border-b border-[#2a2a35]/50 last:border-0"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-[#252530] flex items-center justify-center shrink-0 p-1">
+                          <CategoryIcon category={item.category} className="w-6 h-6" />
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-16 bg-[#141418] border border-[#1f1f28] rounded-2xl">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#1a1a1f] flex items-center justify-center">
-                      <svg className="w-8 h-8 text-[#3a3a48]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      </svg>
-                    </div>
-                    <p className="text-[#6b6b7a] mb-2">No items found</p>
-                    <p className="text-[#4a4a58] text-sm">Try adjusting your filters</p>
-                  </div>
-                )}
-              </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{item.description}</p>
+                          <p className="text-[#6b6b7a] text-xs mt-0.5 truncate">
+                            {item.category?.name_en || item.category?.name} · {item.location || 'No location'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-mono text-sm text-white font-semibold">{item.stock_quantity}</span>
+                          <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: status.color }} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Stats Bar - Hidden on mobile */}
+          <div className="hidden sm:flex pb-4 flex-wrap items-center gap-2">
+            <button
+              onClick={() => { setShowLowStockOnly(!showLowStockOnly); setShowNeedsOrderOnly(false); setShowReportedOnly(false); if (!selectedCategory && !showLowStockOnly) setSelectedCategory('_filter'); }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                showLowStockOnly
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                  : 'bg-[#1a1a23] text-[#8b8b9a] border-[#2a2a35] hover:border-[#3a3a48] hover:text-white'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{globalStats.lowStockItems} Low Stock</span>
+            </button>
+
+            <button
+              onClick={() => { setShowNeedsOrderOnly(!showNeedsOrderOnly); setShowLowStockOnly(false); setShowReportedOnly(false); if (!selectedCategory && !showNeedsOrderOnly) setSelectedCategory('_filter'); }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                showNeedsOrderOnly
+                  ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                  : 'bg-[#1a1a23] text-[#8b8b9a] border-[#2a2a35] hover:border-[#3a3a48] hover:text-white'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span>{globalStats.needsOrderItems} Need Order</span>
+            </button>
+
+            {/* Reported Items Filter - Only for Head of Electronics */}
+            {canEdit && notifications.length > 0 && (
+              <button
+                onClick={() => { setShowReportedOnly(!showReportedOnly); setShowLowStockOnly(false); setShowNeedsOrderOnly(false); if (!selectedCategory && !showReportedOnly) setSelectedCategory('_filter'); }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                  showReportedOnly
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                    : 'bg-[#1a1a23] text-[#8b8b9a] border-[#2a2a35] hover:border-[#3a3a48] hover:text-white'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <span>{notifications.length} Reported</span>
+              </button>
             )}
 
-            {/* Table View */}
-            {viewMode === 'table' && (
-              <div className="bg-[#141418] border border-[#1f1f28] rounded-2xl overflow-hidden opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '200ms' }}>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[#1f1f28]">
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Item</th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Location</th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Distributor</th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Stock</th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Order</th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1f1f28]">
-                      {filteredItems.map((item) => {
-                        const status = getStockStatus(item);
-                        return (
-                          <tr key={item.id} className="hover:bg-[#1a1a1f] transition-colors">
-                            <td className="px-4 py-4">
-                              <div className="max-w-xs">
-                                <div className="font-medium text-white truncate">{item.description}</div>
-                                {item.brand && (
-                                  <div className="text-xs text-[#6b6b7a]">{item.brand}</div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-[#8b8b9a] text-sm">
-                              {item.location || '-'}
-                            </td>
-                            <td className="px-4 py-4">
-                              {item.distributor ? (
-                                item.distributor.website ? (
-                                  <a
-                                    href={item.distributor.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[#06b6d4] hover:underline text-sm"
-                                  >
-                                    {item.distributor.name}
-                                  </a>
-                                ) : (
-                                  <span className="text-[#8b8b9a] text-sm">{item.distributor.name}</span>
-                                )
-                              ) : (
-                                <span className="text-[#4a4a58] text-sm">-</span>
+            {canEdit && orderListCount > 0 && (
+              <button
+                onClick={() => navigate('/order-list')}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border bg-[#ea2127]/10 text-[#ea2127] border-[#ea2127]/30 hover:bg-[#ea2127]/20"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span>View Order List ({orderListCount})</span>
+              </button>
+            )}
+
+            <div className="ml-auto text-sm text-[#6b6b7a]">
+              <span className="font-mono font-semibold text-white">{globalStats.totalItems}</span> items total
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Click outside to close search */}
+      {showSearchResults && searchQuery && (
+        <div className="fixed inset-0 z-30" onClick={() => setShowSearchResults(false)} />
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Category View or Items View */}
+        {(!selectedCategory || selectedCategory === '_filter') && !showLowStockOnly && !showNeedsOrderOnly && !showReportedOnly ? (
+          /* Category Cards */
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {categoryStats.map((cat, idx) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className="group relative text-center p-6 bg-gradient-to-br from-[#1a1a23] to-[#15151c] border border-[#2a2a35] rounded-2xl hover:border-[#3a3a48] hover:shadow-lg hover:shadow-black/20 transition-all duration-200"
+                style={{ animationDelay: `${idx * 40}ms` }}
+              >
+                {/* Low Stock Badge - Top Right Corner */}
+                {cat.lowStockCount > 0 && (
+                  <div className="absolute -top-2 -right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500 shadow-lg shadow-amber-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <span className="text-xs font-bold text-black">{cat.lowStockCount}</span>
+                  </div>
+                )}
+
+                {/* Category Icon - Centered */}
+                <div className="flex justify-center mb-4">
+                  <CategoryIcon
+                    category={{ id: cat.id, name: cat.name, name_en: cat.name_en, color: cat.color, icon: cat.icon }}
+                    className="w-16 h-16 sm:w-20 sm:h-20"
+                  />
+                </div>
+
+                {/* Category Name - Centered */}
+                <h3 className="text-white font-semibold text-base mb-1 group-hover:text-[#ea2127] transition-colors">
+                  {cat.name_en || cat.name}
+                </h3>
+                <p className="text-[#6b6b7a] text-sm">
+                  {cat.itemCount} items
+                </p>
+
+                {/* Hover Arrow */}
+                <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all">
+                  <svg className="w-5 h-5 text-[#ea2127]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          /* Items List */
+          <>
+            {/* View Controls */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-1 bg-[#1a1a23] p-1 rounded-lg border border-[#2a2a35]">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'list' ? 'bg-[#252530] text-white' : 'text-[#6b6b7a] hover:text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                  <span className="hidden sm:inline">List</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'grid' ? 'bg-[#252530] text-white' : 'text-[#6b6b7a] hover:text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+              </div>
+              <span className="text-sm text-[#6b6b7a]">
+                <span className="font-mono font-semibold text-white">{filteredItems.length}</span> items
+              </span>
+            </div>
+
+            {viewMode === 'list' ? (
+              /* List View */
+              <div className="bg-[#1a1a23] border border-[#2a2a35] rounded-2xl overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#2a2a35] bg-[#15151c]">
+                      <th className="px-5 py-4 text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider text-left">Item</th>
+                      <th className="px-5 py-4 text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider text-left hidden lg:table-cell">Location</th>
+                      <th className="px-5 py-4 text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider text-right">Stock</th>
+                      <th className="px-5 py-4 text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider text-center hidden sm:table-cell">Status</th>
+                      <th className="px-5 py-4 text-xs font-semibold text-[#6b6b7a] uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2a2a35]/50">
+                    {filteredItems.map((item) => {
+                      const status = getStockStatus(item);
+                      const itemNotifications = getItemNotifications(item.id);
+                      const hasNotifications = canEdit && itemNotifications.length > 0;
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`group transition-colors ${hasNotifications ? 'bg-amber-500/5' : 'hover:bg-[#252530]/50'}`}
+                        >
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-4">
+                              {hasNotifications && (
+                                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
                               )}
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <span className="font-mono text-lg font-semibold text-white">
-                                {item.stock_quantity}
-                              </span>
-                              <span className="text-[#6b6b7a] text-xs ml-1">{item.stock_unit}</span>
-                            </td>
-                            <td className="px-4 py-4 text-center">
+                              <div className="min-w-0">
+                                <p className="text-white font-medium truncate">{item.description}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {item.brand && <span className="text-[#6b6b7a] text-xs">{item.brand}</span>}
+                                  {hasNotifications && (
+                                    <span className="text-amber-400 text-xs font-medium">
+                                      · Reported by {itemNotifications[0].reporter_name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 hidden lg:table-cell">
+                            <span className="text-[#8b8b9a] text-sm">{item.location || '—'}</span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <span className="font-mono text-lg font-semibold text-white">{item.stock_quantity}</span>
+                            <span className="text-[#6b6b7a] text-xs ml-1">{item.stock_unit}</span>
+                          </td>
+                          <td className="px-5 py-4 hidden sm:table-cell">
+                            <div className="flex justify-center">
                               <span
-                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium"
-                                style={{
-                                  backgroundColor: `${status.color}20`,
-                                  color: status.color,
-                                }}
+                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${status.bg} ${status.border} border`}
+                                style={{ color: status.color }}
                               >
                                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
                                 {status.label}
                               </span>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              {/* Fixed width container to prevent layout shift */}
-                              <div className="flex items-center justify-center gap-2 w-[100px] mx-auto">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={orderQuantities[item.id] || 1}
-                                  onChange={(e) => updateOrderQuantity(item.id, parseInt(e.target.value) || 1)}
-                                  className={`w-14 px-2 py-1.5 bg-[#1f1f28] border border-[#ef4444]/30 rounded-lg text-white text-center text-sm font-mono focus:outline-none focus:border-[#ef4444] transition-all ${
-                                    item.needs_order ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-end gap-1">
+                              {isElectronicsOnly ? (
+                                <button
+                                  onClick={() => openReportConfirmDialog(item)}
+                                  disabled={reportedItems.has(item.id) || reportingItems.has(item.id)}
+                                  className={`p-2 rounded-lg transition-all ${
+                                    reportedItems.has(item.id)
+                                      ? 'text-emerald-400 bg-emerald-500/10'
+                                      : reportingItems.has(item.id)
+                                      ? 'text-amber-400 bg-amber-500/10 animate-pulse'
+                                      : 'text-[#6b6b7a] hover:text-amber-400 hover:bg-amber-500/10'
                                   }`}
-                                />
+                                  title="Report low stock"
+                                >
+                                  {reportedItems.has(item.id) ? (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                    </svg>
+                                  )}
+                                </button>
+                              ) : (
+                                <>
+                                  {hasNotifications && (
+                                    <button
+                                      onClick={() => dismissNotification(itemNotifications[0].id)}
+                                      className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#252530] rounded-lg transition-all"
+                                      title="Dismiss report"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {canMarkNeedsOrder && (
+                                    <button
+                                      onClick={() => toggleNeedsOrder(item)}
+                                      className={`p-2 rounded-lg transition-all ${
+                                        item.needs_order
+                                          ? 'text-[#ea2127] bg-[#ea2127]/10'
+                                          : 'text-[#6b6b7a] hover:text-white hover:bg-[#252530]'
+                                      }`}
+                                      title={item.needs_order ? 'Remove from order list' : 'Add to order list'}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {canEdit && (
+                                    <button
+                                      onClick={() => openEditModal(item)}
+                                      className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#252530] rounded-lg transition-all"
+                                      title="Edit item"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {!isElectronicsOnly && item.link && (
+                                    <a
+                                      href={item.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-2 text-[#6b6b7a] hover:text-[#3b82f6] hover:bg-[#3b82f6]/10 rounded-lg transition-all"
+                                      title="Open product link"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </a>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              /* Grid View */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredItems.map((item) => {
+                  const status = getStockStatus(item);
+                  const itemNotifications = getItemNotifications(item.id);
+                  const hasNotifications = canEdit && itemNotifications.length > 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`group p-5 rounded-2xl border transition-all ${
+                        hasNotifications
+                          ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
+                          : 'bg-[#1a1a23] border-[#2a2a35] hover:border-[#3a3a48]'
+                      }`}
+                    >
+                      {/* Report Banner */}
+                      {hasNotifications && (
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-amber-500/20">
+                          <span className="text-amber-400 text-xs font-semibold flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                            Reported by {itemNotifications[0].reporter_name}
+                          </span>
+                          <button
+                            onClick={() => dismissNotification(itemNotifications[0].id)}
+                            className="text-amber-500/50 hover:text-amber-400 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Item Info */}
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-white font-semibold leading-snug line-clamp-2">{item.description}</h3>
+                          {item.brand && <p className="text-[#6b6b7a] text-xs mt-1">{item.brand}</p>}
+                        </div>
+                        <span
+                          className={`shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${status.bg} ${status.border} border`}
+                          style={{ color: status.color }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
+                          {status.label.split(' ')[0]}
+                        </span>
+                      </div>
+
+                      {/* Location */}
+                      {item.location && (
+                        <p className="text-[#6b6b7a] text-sm mb-4 flex items-center gap-2">
+                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="truncate">{item.location}</span>
+                        </p>
+                      )}
+
+                      {/* Stock & Actions */}
+                      <div className="flex items-center justify-between pt-4 border-t border-[#2a2a35]/50">
+                        <div>
+                          <span className="font-mono text-2xl font-bold text-white">{item.stock_quantity}</span>
+                          <span className="text-[#6b6b7a] text-sm ml-1">{item.stock_unit}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {isElectronicsOnly ? (
+                            <button
+                              onClick={() => openReportConfirmDialog(item)}
+                              disabled={reportedItems.has(item.id) || reportingItems.has(item.id)}
+                              className={`p-2 rounded-lg transition-all ${
+                                reportedItems.has(item.id)
+                                  ? 'text-emerald-400 bg-emerald-500/10'
+                                  : reportingItems.has(item.id)
+                                  ? 'text-amber-400 bg-amber-500/10 animate-pulse'
+                                  : 'text-[#6b6b7a] hover:text-amber-400 hover:bg-amber-500/10'
+                              }`}
+                            >
+                              {reportedItems.has(item.id) ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                              )}
+                            </button>
+                          ) : (
+                            <>
+                              {canMarkNeedsOrder && (
                                 <button
                                   onClick={() => toggleNeedsOrder(item)}
-                                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                                  className={`p-2 rounded-lg transition-all ${
                                     item.needs_order
-                                      ? 'bg-[#ef4444]/20 text-[#ef4444] hover:bg-[#ef4444]/30'
-                                      : 'bg-[#1f1f28] text-[#6b6b7a] hover:text-white hover:bg-[#2a2a38]'
+                                      ? 'text-[#ea2127] bg-[#ea2127]/10'
+                                      : 'text-[#6b6b7a] hover:text-white hover:bg-[#252530]'
                                   }`}
-                                  title={item.needs_order ? 'Remove from order list' : 'Add to order list'}
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                                   </svg>
                                 </button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <div className="flex items-center justify-center gap-2">
+                              )}
+                              {canEdit && (
                                 <button
                                   onClick={() => openEditModal(item)}
-                                  className="p-2 bg-[#1f1f28] text-[#6b6b7a] hover:text-white hover:bg-[#2a2a38] rounded-lg transition-colors"
-                                  title="Edit item"
+                                  className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#252530] rounded-lg transition-all"
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                 </button>
-                                {item.link && (
-                                  <a
-                                    href={item.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-2 bg-[#1f1f28] text-[#6b6b7a] hover:text-[#06b6d4] hover:bg-[#2a2a38] rounded-lg transition-colors"
-                                    title="View product"
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                    </svg>
-                                  </a>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {filteredItems.length === 0 && (
-                  <div className="text-center py-16">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#1a1a1f] flex items-center justify-center">
-                      <svg className="w-8 h-8 text-[#3a3a48]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      </svg>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-[#6b6b7a] mb-2">No items found</p>
-                    <p className="text-[#4a4a58] text-sm">Try adjusting your filters</p>
-                  </div>
-                )}
+                  );
+                })}
               </div>
             )}
 
-            {/* Results count */}
-            <div className="mt-4 text-[#6b6b7a] text-sm">
-              Showing {filteredItems.length} of {items.filter(i => !selectedCategory || i.category_id === selectedCategory).length} items
-            </div>
+            {filteredItems.length === 0 && (
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl bg-[#1a1a23] flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-[#3a3a48]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                </div>
+                <p className="text-[#6b6b7a] font-medium">No items found</p>
+                <p className="text-[#4a4a58] text-sm mt-1">Try adjusting your filters</p>
+              </div>
+            )}
           </>
         )}
       </div>
 
-      {/* Edit Item Modal */}
+      {/* Edit Modal */}
       {editingItem && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#141418] border border-[#2a2a35] rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-[#2a2a35] sticky top-0 bg-[#141418]">
-              <h2 className="text-xl font-bold text-white">Edit Item</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1a23] border border-[#2a2a35] rounded-2xl w-full max-w-md shadow-2xl shadow-black/50">
+            <div className="px-6 py-5 border-b border-[#2a2a35]">
+              <h2 className="text-lg font-bold text-white">Edit Item</h2>
               <p className="text-[#6b6b7a] text-sm mt-1 truncate">{editingItem.description}</p>
             </div>
-
             <div className="p-6 space-y-5">
-              {/* Stock Quantity */}
               <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">
-                  Stock Quantity
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setEditStock(Math.max(0, editStock - 1))}
-                    className="w-11 h-11 rounded-xl bg-[#1f1f28] hover:bg-[#2a2a38] text-white text-xl font-bold transition-colors flex items-center justify-center"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    value={editStock}
-                    onChange={(e) => setEditStock(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="flex-1 px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white text-center text-xl font-mono focus:outline-none focus:border-[#06b6d4]/50"
-                  />
-                  <button
-                    onClick={() => setEditStock(editStock + 1)}
-                    className="w-11 h-11 rounded-xl bg-[#1f1f28] hover:bg-[#2a2a38] text-white text-xl font-bold transition-colors flex items-center justify-center"
-                  >
-                    +
-                  </button>
-                </div>
-                {editStock !== editingItem.stock_quantity && (
-                  <p className="text-xs text-[#6b6b7a] mt-1">
-                    Previous: {editingItem.stock_quantity} → New: {editStock}
-                  </p>
-                )}
+                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Stock Quantity</label>
+                <input
+                  type="number"
+                  value={editStock}
+                  onChange={(e) => setEditStock(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-3 bg-[#15151c] border border-[#2a2a35] rounded-xl text-white focus:outline-none focus:border-[#ea2127] focus:ring-2 focus:ring-[#ea2127]/20 font-mono text-lg transition-all"
+                />
               </div>
-
-              {/* Location */}
               <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">
-                  Location
-                </label>
+                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Location</label>
                 <input
                   type="text"
                   value={editLocation}
                   onChange={(e) => setEditLocation(e.target.value)}
-                  placeholder="e.g., Shelf A1, Warehouse B"
-                  className="w-full px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white placeholder-[#4a4a58] focus:outline-none focus:border-[#06b6d4]/50"
+                  className="w-full px-4 py-3 bg-[#15151c] border border-[#2a2a35] rounded-xl text-white focus:outline-none focus:border-[#ea2127] focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
+                  placeholder="e.g., Shelf A-1"
                 />
               </div>
-
-              {/* Distributor */}
               <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">
-                  Distributor
-                </label>
+                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Distributor</label>
                 <select
                   value={editDistributorId}
                   onChange={(e) => setEditDistributorId(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white focus:outline-none focus:border-[#06b6d4]/50 appearance-none cursor-pointer"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b6b7a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.75rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem',
-                  }}
+                  className="w-full px-4 py-3 bg-[#15151c] border border-[#2a2a35] rounded-xl text-white focus:outline-none focus:border-[#ea2127] focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
                 >
                   <option value="">No distributor</option>
-                  {distributors.map((dist) => (
-                    <option key={dist.id} value={dist.id}>
-                      {dist.name}
-                    </option>
-                  ))}
+                  {distributors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
-
-              {/* Link */}
               <div>
-                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">
-                  Product Link
-                </label>
+                <label className="block text-sm font-medium text-[#8b8b9a] mb-2">Product Link</label>
                 <input
                   type="url"
                   value={editLink}
                   onChange={(e) => setEditLink(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#15151c] border border-[#2a2a35] rounded-xl text-white focus:outline-none focus:border-[#ea2127] focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
                   placeholder="https://..."
-                  className="w-full px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white placeholder-[#4a4a58] focus:outline-none focus:border-[#06b6d4]/50"
                 />
-                {editLink && (
-                  <a
-                    href={editLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-[#06b6d4] hover:underline mt-2"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    Open link
-                  </a>
-                )}
               </div>
+            </div>
+            <div className="px-6 py-5 border-t border-[#2a2a35] flex gap-3">
+              <button
+                onClick={() => setEditingItem(null)}
+                className="flex-1 px-4 py-3 bg-[#252530] hover:bg-[#2a2a38] text-white rounded-xl transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={updateItem}
+                disabled={saving}
+                className="flex-1 px-4 py-3 bg-[#ea2127] hover:bg-[#d91e24] text-white rounded-xl transition-colors disabled:opacity-50 font-semibold"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t border-[#2a2a35]">
-                <button
-                  onClick={() => setEditingItem(null)}
-                  className="flex-1 px-4 py-3 bg-[#1f1f28] hover:bg-[#2a2a38] text-white rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={updateItem}
-                  disabled={saving}
-                  className="flex-1 px-4 py-3 bg-[#06b6d4] hover:bg-[#0891b2] text-white rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
+      {/* Confirm Report Dialog */}
+      {showConfirmDialog && itemToReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1a23] border border-[#2a2a35] rounded-2xl w-full max-w-sm text-center shadow-2xl shadow-black/50">
+            <div className="p-8">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 flex items-center justify-center mx-auto mb-5">
+                <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
               </div>
+              <h3 className="text-xl font-bold text-white mb-3">Report Low Stock?</h3>
+              <p className="text-white font-medium mb-2">{itemToReport.description}</p>
+              <p className="text-[#6b6b7a] text-sm">Head of Electronics will be notified about this item.</p>
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => { setShowConfirmDialog(false); setItemToReport(null); }}
+                className="flex-1 px-4 py-3 bg-[#252530] hover:bg-[#2a2a38] text-white rounded-xl transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => reportLowStock(itemToReport)}
+                className="flex-1 px-4 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition-colors font-bold"
+              >
+                Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Toast */}
+      {showReportConfirmation && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-[fadeSlideIn_0.3s_ease-out]">
+          <div className="flex items-center gap-3 px-5 py-4 bg-emerald-500/15 border border-emerald-500/30 rounded-xl backdrop-blur-sm shadow-lg shadow-black/30">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-emerald-400 font-semibold">Report Sent</p>
+              <p className="text-emerald-400/70 text-sm">{confirmedItemName}</p>
             </div>
           </div>
         </div>

@@ -17,11 +17,24 @@ interface SidebarProps {
   currentView: string;
   onNavigate: (view: string) => void;
   onToggleCommandLine: () => void;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleCommandLine, isMobileOpen, onMobileClose }) => {
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(false);
   const [open, setOpen] = useState(true);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   const [showHelp, setShowHelp] = useState(false);
   const [showViewAsModal, setShowViewAsModal] = useState(false);
   const { user, signOut } = useAuthStore();
@@ -129,27 +142,71 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
     return item.roles.some(role => hasEffectiveRole(role));
   });
 
+  // Handle navigation with mobile close
+  const handleNavigate = (view: string) => {
+    onNavigate(view);
+    if (isMobile && onMobileClose) {
+      onMobileClose();
+    }
+  };
+
+  // Handle profile navigation with mobile close
+  const handleProfileNavigate = () => {
+    navigate('/profile');
+    if (isMobile && onMobileClose) {
+      onMobileClose();
+    }
+  };
+
+  // Don't render sidebar on mobile when closed
+  if (isMobile && !isMobileOpen) {
+    return null;
+  }
+
   return (
-    <nav
-      className="h-full shrink-0 flex flex-col bg-[#0f0f12] border-r border-[#1f1f28] transition-all duration-300 ease-out"
-      style={{
-        width: open ? '220px' : '68px',
-      }}
-    >
+    <>
+      {/* Mobile overlay backdrop */}
+      {isMobile && isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+      <nav
+        className={`
+          ${isMobile
+            ? 'fixed inset-y-0 left-0 z-50 w-[280px] animate-[slideInLeft_0.3s_ease-out]'
+            : 'h-full shrink-0 transition-all duration-300 ease-out'
+          }
+          flex flex-col bg-[#0f0f12] border-r border-[#1f1f28]
+        `}
+        style={!isMobile ? { width: open ? '220px' : '68px' } : undefined}
+      >
       {/* Logo Section */}
-      <div className="p-4 border-b border-[#1f1f28] flex items-center justify-center h-16">
-        {open ? (
-          <img
-            src="/logo/logo_name.png"
-            alt="IE Software"
-            className="h-7 w-auto object-contain opacity-90"
-          />
-        ) : (
-          <img
-            src="/logo/logo.png"
-            alt="IE Software"
-            className="h-8 w-8 object-contain opacity-90"
-          />
+      <div className="p-4 border-b border-[#1f1f28] flex items-center justify-between h-16">
+        <div className="flex-1 flex items-center justify-center">
+          {(open || isMobile) ? (
+            <img
+              src="/logo/logo_name.png"
+              alt="IE Software"
+              className="h-7 w-auto object-contain opacity-90"
+            />
+          ) : (
+            <img
+              src="/logo/logo.png"
+              alt="IE Software"
+              className="h-8 w-8 object-contain opacity-90"
+            />
+          )}
+        </div>
+        {/* Mobile close button */}
+        {isMobile && (
+          <button
+            onClick={onMobileClose}
+            className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#1f1f28] rounded-lg transition-colors"
+          >
+            <FiX className="w-5 h-5" />
+          </button>
         )}
       </div>
 
@@ -163,8 +220,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
             title={item.name}
             view={item.view}
             selected={currentView}
-            onSelect={onNavigate}
-            open={open}
+            onSelect={handleNavigate}
+            open={open || isMobile}
           />
         ))}
       </div>
@@ -174,21 +231,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
         {/* ViewAs Button - Only for Super Admin */}
         {canUseViewAs() && (
           <ViewAsButton
-            open={open}
+            open={open || isMobile}
             isViewingAs={isViewingAs()}
             viewAsRole={viewAsRole}
             onOpenModal={() => setShowViewAsModal(true)}
             onClearViewAs={clearViewAs}
           />
         )}
-        {/* Command Line - Only for Super Admin */}
-        {hasEffectiveRole('Super Admin') && (
+        {/* Command Line - Only for Super Admin (hidden on mobile) */}
+        {hasEffectiveRole('Super Admin') && !isMobile && (
           <CommandLineButton open={open} onToggle={onToggleCommandLine} onShowHelp={() => setShowHelp(true)} />
         )}
-        <ProfileButton open={open} onNavigate={() => navigate('/profile')} />
-        <UserInfo open={open} user={user} />
-        <LogoutButton open={open} onLogout={signOut} />
-        <ToggleClose open={open} setOpen={setOpen} />
+        <ProfileButton open={open || isMobile} onNavigate={handleProfileNavigate} />
+        <UserInfo open={open || isMobile} user={user} />
+        <LogoutButton open={open || isMobile} onLogout={signOut} />
+        {/* Hide toggle on mobile */}
+        {!isMobile && <ToggleClose open={open} setOpen={setOpen} />}
       </div>
 
       {/* Help Modal */}
@@ -276,6 +334,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
         />
       )}
     </nav>
+    </>
   );
 };
 

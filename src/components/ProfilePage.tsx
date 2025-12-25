@@ -6,6 +6,7 @@ import {
   updateUserPassword,
   uploadAvatar
 } from '../services/supabaseQueries';
+import { useAuthStore } from '../store/authStore';
 
 interface UserProfile {
   id: string;
@@ -20,6 +21,7 @@ interface UserProfile {
 export default function ProfilePage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { signOut } = useAuthStore();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -532,6 +534,28 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Logout Section */}
+          <div className="bg-[#141418] rounded-2xl border border-[#1f1f28] p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-[#ea2127]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Sign Out
+            </h3>
+            <p className="text-[#6b6b7a] text-sm mb-4">
+              Sign out of your account on this device.
+            </p>
+            <button
+              onClick={signOut}
+              className="px-5 py-2.5 bg-[#ea2127] hover:bg-[#d11920] text-white rounded-xl font-medium transition-all flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Logout
+            </button>
           </div>
         </div>
       </div>
