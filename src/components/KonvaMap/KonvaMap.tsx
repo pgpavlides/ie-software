@@ -500,6 +500,8 @@ const KonvaMap: React.FC = () => {
 
     let lastDist = 0;
     let isPinching = false;
+    let isDragging = false;
+    let lastTouch = { x: 0, y: 0 };
 
     const getDistance = (touches: TouchList) => {
       const dx = touches[0].clientX - touches[1].clientX;
@@ -514,15 +516,29 @@ const KonvaMap: React.FC = () => {
 
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
+        // Two-finger pinch
         e.preventDefault();
+        e.stopPropagation();
         isPinching = true;
+        isDragging = false;
         lastDist = getDistance(e.touches);
+        stage.stopDrag();
+      } else if (e.touches.length === 1) {
+        // Single-finger pan - only start if not on a box
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'CANVAS') {
+          isDragging = true;
+          isPinching = false;
+          lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 2 && isPinching) {
+        // Pinch-to-zoom
         e.preventDefault();
+        e.stopPropagation();
 
         const newDist = getDistance(e.touches);
         const center = getCenter(e.touches);
@@ -553,12 +569,30 @@ const KonvaMap: React.FC = () => {
         stage.batchDraw();
 
         lastDist = newDist;
+      } else if (e.touches.length === 1 && isDragging && !isPinching) {
+        // Single-finger pan
+        const touch = e.touches[0];
+        const dx = touch.clientX - lastTouch.x;
+        const dy = touch.clientY - lastTouch.y;
+
+        const newPos = {
+          x: stage.x() + dx,
+          y: stage.y() + dy,
+        };
+
+        stage.position(newPos);
+        stage.batchDraw();
+
+        lastTouch = { x: touch.clientX, y: touch.clientY };
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
       if (e.touches.length < 2) {
         isPinching = false;
+      }
+      if (e.touches.length === 0) {
+        isDragging = false;
         // Sync React state
         setZoomLevel(stage.scaleX());
         setStagePosition(stage.position());
@@ -632,7 +666,7 @@ const KonvaMap: React.FC = () => {
             scaleY={zoomLevel}
             x={stagePosition.x}
             y={stagePosition.y}
-            draggable={true}
+            draggable={!isMobile}
             onDragEnd={handleStageDragEnd}
           >
             {/* Background layer - optimized for performance */}
