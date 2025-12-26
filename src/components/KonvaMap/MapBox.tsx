@@ -216,6 +216,7 @@ const MapBox: React.FC<MapBoxProps> = ({
         shadowOffsetX={isViewing || isSelected ? 0 : Math.max(1, 2 * sizeFactor)}
         shadowOffsetY={isViewing || isSelected ? 0 : Math.max(1, 2 * sizeFactor)}
         onTransformEnd={handleTransformEnd}
+        perfectDrawEnabled={false}
       />
 
       {/* Box name label - always visible, scales with box */}
