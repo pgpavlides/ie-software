@@ -499,7 +499,6 @@ const KonvaMap: React.FC = () => {
     container.style.touchAction = 'none';
 
     let lastDist = 0;
-    let lastCenter = { x: 0, y: 0 };
     let isPinching = false;
 
     const getDistance = (touches: TouchList) => {
@@ -518,7 +517,6 @@ const KonvaMap: React.FC = () => {
         e.preventDefault();
         isPinching = true;
         lastDist = getDistance(e.touches);
-        lastCenter = getCenter(e.touches);
       }
     };
 
@@ -527,30 +525,27 @@ const KonvaMap: React.FC = () => {
         e.preventDefault();
 
         const newDist = getDistance(e.touches);
-        const newCenter = getCenter(e.touches);
+        const center = getCenter(e.touches);
 
         const rect = container.getBoundingClientRect();
-        const pointX = newCenter.x - rect.left;
-        const pointY = newCenter.y - rect.top;
+        const pointX = center.x - rect.left;
+        const pointY = center.y - rect.top;
 
         // Calculate scale change
         const scaleChange = newDist / lastDist;
         const oldScale = stage.scaleX();
         const newScale = Math.max(0.5, Math.min(5, oldScale * scaleChange));
 
-        // Calculate new position
+        // Calculate the point in world coordinates (before zoom)
         const mousePointTo = {
           x: (pointX - stage.x()) / oldScale,
           y: (pointY - stage.y()) / oldScale,
         };
 
-        // Account for pan movement
-        const dx = newCenter.x - lastCenter.x;
-        const dy = newCenter.y - lastCenter.y;
-
+        // Calculate new position so the pinch center stays fixed on screen
         const newPos = {
-          x: pointX - mousePointTo.x * newScale + dx,
-          y: pointY - mousePointTo.y * newScale + dy,
+          x: pointX - mousePointTo.x * newScale,
+          y: pointY - mousePointTo.y * newScale,
         };
 
         stage.scale({ x: newScale, y: newScale });
@@ -558,7 +553,6 @@ const KonvaMap: React.FC = () => {
         stage.batchDraw();
 
         lastDist = newDist;
-        lastCenter = newCenter;
       }
     };
 
