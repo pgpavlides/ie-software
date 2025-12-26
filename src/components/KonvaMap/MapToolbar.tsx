@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaMousePointer, FaPencilAlt, FaPlus, FaList, FaMap, FaSave } from 'react-icons/fa';
+import { FaMousePointer, FaPencilAlt, FaPlus, FaList, FaMap, FaSave, FaTimes } from 'react-icons/fa';
 
 interface MapToolbarProps {
   canEdit: boolean;
@@ -10,6 +10,7 @@ interface MapToolbarProps {
   onToggleView: () => void;
   hasUnsavedChanges: boolean;
   onSave: () => void;
+  onCancel: () => void;
 }
 
 const MapToolbar: React.FC<MapToolbarProps> = ({
@@ -21,6 +22,7 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
   onToggleView,
   hasUnsavedChanges,
   onSave,
+  onCancel,
 }) => {
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
@@ -51,7 +53,7 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
               title="Edit mode - Drag, resize, and manage boxes"
             >
               <FaPencilAlt className="w-4 h-4" />
-              <span className="hidden sm:inline">Edit</span>
+              <span className="hidden sm:inline">Edit Boxes</span>
             </button>
           )}
         </div>
@@ -96,16 +98,26 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
           </div>
         )}
 
-        {/* Save button - appears when there are unsaved changes */}
+        {/* Save/Cancel buttons - appear when there are unsaved changes */}
         {hasUnsavedChanges && (
-          <button
-            onClick={onSave}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-[#10b981]/20 animate-pulse"
-            title="Save changes"
-          >
-            <FaSave className="w-4 h-4" />
-            <span className="hidden sm:inline">Save</span>
-          </button>
+          <>
+            <button
+              onClick={onCancel}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1f] hover:bg-[#252530] text-[#8b8b9a] hover:text-white rounded-xl font-medium text-sm transition-all border border-[#2a2a35]"
+              title="Cancel changes"
+            >
+              <FaTimes className="w-4 h-4" />
+              <span className="hidden sm:inline">Cancel</span>
+            </button>
+            <button
+              onClick={onSave}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-[#10b981]/20 animate-pulse"
+              title="Save changes"
+            >
+              <FaSave className="w-4 h-4" />
+              <span className="hidden sm:inline">Save</span>
+            </button>
+          </>
         )}
       </div>
 

@@ -35,6 +35,8 @@ const KonvaMap: React.FC = () => {
 
   // Pending changes state (tracks unsaved modifications)
   const [pendingChanges, setPendingChanges] = useState<Record<string, Partial<MapBoxData>>>({});
+  // Original data before editing (for cancel/revert)
+  const [originalBoxData, setOriginalBoxData] = useState<Record<string, MapBoxData>>({});
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -153,6 +155,17 @@ const KonvaMap: React.FC = () => {
 
   // Handle box change (drag/resize) - stores locally, doesn't save immediately
   const handleBoxChange = (boxId: string, attrs: Partial<MapBoxData>) => {
+    // Store original data before first change (for cancel/revert)
+    setOriginalBoxData(prev => {
+      if (!prev[boxId]) {
+        const originalBox = mapBoxes.find(b => b.id === boxId);
+        if (originalBox) {
+          return { ...prev, [boxId]: { ...originalBox } };
+        }
+      }
+      return prev;
+    });
+
     // Update local state for immediate visual feedback
     setMapBoxes(prev =>
       prev.map(box => box.id === boxId ? { ...box, ...attrs } : box)
@@ -177,9 +190,34 @@ const KonvaMap: React.FC = () => {
 
       await Promise.all(updates);
       setPendingChanges({}); // Clear pending changes after successful save
+      setOriginalBoxData({}); // Clear original data after save
+      setEditingBox(null); // Exit edit mode after saving
     } catch (error) {
       console.error('Error saving changes:', error);
     }
+  };
+
+  // Cancel all pending changes and revert to original data
+  const handleCancelChanges = () => {
+    // Restore original box data
+    setMapBoxes(prev =>
+      prev.map(box => {
+        if (originalBoxData[box.id]) {
+          return originalBoxData[box.id];
+        }
+        return box;
+      })
+    );
+
+    // Also update viewingBox if it was modified
+    if (viewingBox && originalBoxData[viewingBox.id]) {
+      setViewingBox(originalBoxData[viewingBox.id]);
+    }
+
+    // Clear all tracking state
+    setPendingChanges({});
+    setOriginalBoxData({});
+    setEditingBox(null);
   };
 
   // Check if there are unsaved changes
@@ -263,6 +301,7 @@ const KonvaMap: React.FC = () => {
         name: 'New Box',
         description: null,
         link_url: '',
+        links: [],
         x_position: xPercent,
         y_position: yPercent,
         width: 0.06,
@@ -462,6 +501,25 @@ const KonvaMap: React.FC = () => {
                     }
                   }}
                   onView={() => {
+                    // If currently editing a different box, revert and switch to this one
+                    if (editingBox && editingBox.id !== box.id) {
+                      // Restore original data for old box
+                      if (originalBoxData[editingBox.id]) {
+                        setMapBoxes(prev =>
+                          prev.map(b => b.id === editingBox.id ? originalBoxData[editingBox.id] : b)
+                        );
+                        // Remove from tracking
+                        setPendingChanges(prev => {
+                          const { [editingBox.id]: _, ...rest } = prev;
+                          return rest;
+                        });
+                        setOriginalBoxData(prev => {
+                          const { [editingBox.id]: _, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                      setEditingBox(box);
+                    }
                     setViewingBox(box);
                     setSelectedBoxId(null); // Clear edit selection when viewing
                   }}
@@ -494,7 +552,7 @@ const KonvaMap: React.FC = () => {
 
         {/* Zoom Controls */}
         {!showListView && (
-          <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
+          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
             <div className="flex flex-col bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl shadow-lg overflow-hidden">
               <button
                 onClick={handleZoomIn}
@@ -524,7 +582,7 @@ const KonvaMap: React.FC = () => {
                 </svg>
               </button>
             </div>
-            <div className="bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl px-3 py-2 text-center">
+            <div className="bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl px-3 py-2 text-center w-14">
               <span className="text-xs text-[#8b8b9a]">{Math.round(zoomLevel * 100)}%</span>
             </div>
           </div>
@@ -532,8 +590,8 @@ const KonvaMap: React.FC = () => {
 
         {/* Placement Mode Notification */}
         {isPlacingBox && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 animate-[fadeSlideDown_0.3s_ease-out]">
-            <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-[#10b981] to-[#059669] text-white rounded-2xl shadow-2xl shadow-[#10b981]/30">
+          <div className="absolute top-4 left-0 right-0 z-30 flex justify-center">
+            <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-[#10b981] to-[#059669] text-white rounded-2xl shadow-2xl shadow-[#10b981]/30 animate-[fadeIn_0.2s_ease-out]">
               <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
               <span className="font-medium">Click anywhere to place a box</span>
               <button
@@ -556,6 +614,7 @@ const KonvaMap: React.FC = () => {
           onToggleView={() => setShowListView(!showListView)}
           hasUnsavedChanges={hasUnsavedChanges}
           onSave={handleSaveChanges}
+          onCancel={handleCancelChanges}
         />
       </div>
 
@@ -583,7 +642,25 @@ const KonvaMap: React.FC = () => {
             setViewingBox({ ...viewingBox, ...attrs });
           }
         }}
-        onSaveEdit={() => {
+        onCancelEdit={() => {
+          // Revert this box to original data and exit edit mode
+          if (editingBox && originalBoxData[editingBox.id]) {
+            // Restore original box data
+            setMapBoxes(prev =>
+              prev.map(box => box.id === editingBox.id ? originalBoxData[editingBox.id] : box)
+            );
+            // Update viewingBox
+            setViewingBox(originalBoxData[editingBox.id]);
+            // Remove from tracking
+            setPendingChanges(prev => {
+              const { [editingBox.id]: _, ...rest } = prev;
+              return rest;
+            });
+            setOriginalBoxData(prev => {
+              const { [editingBox.id]: _, ...rest } = prev;
+              return rest;
+            });
+          }
           setEditingBox(null);
         }}
         canEdit={canEdit}

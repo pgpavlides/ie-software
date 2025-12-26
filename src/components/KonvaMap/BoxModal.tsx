@@ -63,6 +63,7 @@ const BoxModal: React.FC<BoxModalProps> = ({
       name: name.trim(),
       description: description.trim() || null,
       link_url: linkUrl.trim(),
+      links: editingBox?.links ?? [],
       ...position,
       ...size,
       color,

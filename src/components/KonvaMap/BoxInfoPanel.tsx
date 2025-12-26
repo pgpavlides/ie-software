@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { FaTimes, FaExternalLinkAlt, FaPencilAlt, FaTrash, FaSave } from 'react-icons/fa';
-import type { MapBoxData } from './MapBox';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaTimes, FaPencilAlt, FaTrash } from 'react-icons/fa';
+import type { MapBoxData, BoxLink } from './MapBox';
 import ConfirmDialog from './ConfirmDialog';
+import LinkManager, { detectLinkType } from './LinkManager';
 
 const presetColors = [
   '#ea2127', '#f59e0b', '#10b981', '#3b82f6',
-  '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
+  '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+  '#6366f1', '#f43f5e', '#14b8a6', '#64748b', '#a855f7'
 ];
 
 interface BoxInfoPanelProps {
@@ -16,7 +18,7 @@ interface BoxInfoPanelProps {
   onEdit?: (box: MapBoxData) => void;
   onDelete?: (box: MapBoxData) => void;
   onChange?: (boxId: string, attrs: Partial<MapBoxData>) => void;
-  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
   canEdit: boolean;
 }
 
@@ -28,46 +30,73 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
   onEdit,
   onDelete,
   onChange,
-  onSaveEdit,
+  onCancelEdit,
   canEdit,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [editLinkUrl, setEditLinkUrl] = useState('');
+  const [editLinks, setEditLinks] = useState<BoxLink[]>([]);
   const [editColor, setEditColor] = useState('#ea2127');
 
-  // Sync edit fields when box changes or editing starts
+  // Track which box we initialized edit state for (prevents re-init on prop updates)
+  const initializedBoxIdRef = useRef<string | null>(null);
+  const isDirtyRef = useRef(false);
+
+  // Initialize edit fields ONLY when entering edit mode for a new box
   useEffect(() => {
     if (box && isEditing) {
-      setEditName(box.name);
-      setEditDescription(box.description || '');
-      setEditLinkUrl(box.link_url || '');
-      setEditColor(box.color);
+      // Only initialize if this is a different box than we already initialized
+      if (initializedBoxIdRef.current !== box.id) {
+        initializedBoxIdRef.current = box.id;
+        isDirtyRef.current = false; // Reset dirty flag on init
+
+        setEditName(box.name);
+        setEditDescription(box.description || '');
+        // Use links array, or convert legacy link_url if links is empty
+        if (box.links && box.links.length > 0) {
+          setEditLinks(box.links);
+        } else if (box.link_url) {
+          setEditLinks([{ url: box.link_url, type: detectLinkType(box.link_url) }]);
+        } else {
+          setEditLinks([]);
+        }
+        setEditColor(box.color);
+      }
+    } else {
+      // Reset when exiting edit mode
+      initializedBoxIdRef.current = null;
+      isDirtyRef.current = false;
     }
   }, [box, isEditing]);
 
   // Get current text size (default to 4 if null/auto)
   const currentTextSize = box?.text_size ?? 4;
 
-  if (!box) return null;
+  // Sync edits to pending changes whenever fields change (only when dirty)
+  useEffect(() => {
+    // Only sync if we're editing and have actual user changes
+    if (!isEditing || !isDirtyRef.current || !initializedBoxIdRef.current) {
+      return;
+    }
 
-  const handleSaveChanges = () => {
-    if (!editName.trim()) return;
-    onChange?.(box.id, {
-      name: editName.trim(),
-      description: editDescription.trim() || null,
-      link_url: editLinkUrl.trim(),
-      color: editColor,
-    });
-    onSaveEdit?.();
-  };
+    if (box && editName.trim() && initializedBoxIdRef.current === box.id) {
+      onChange?.(box.id, {
+        name: editName.trim(),
+        description: editDescription.trim() || null,
+        links: editLinks,
+        color: editColor,
+      });
+    }
+  }, [editName, editDescription, editLinks, editColor, box, isEditing, onChange]);
+
+  if (!box) return null;
 
   return (
     <>
-      {/* Panel - starts from middle, goes to bottom */}
+      {/* Panel - starts from 15% down, goes to bottom */}
       <div
-        className={`absolute top-1/2 right-0 bottom-0 w-80 max-w-[85vw] bg-[#141418] border-l border-t border-[#2a2a35] rounded-tl-2xl z-40 flex flex-col transform transition-transform duration-300 ease-out ${
+        className={`absolute top-[15%] right-0 bottom-0 w-80 max-w-[85vw] bg-[#141418] border-l border-t border-[#2a2a35] rounded-tl-2xl z-40 flex flex-col transform transition-transform duration-300 ease-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -104,7 +133,7 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
                 <input
                   type="text"
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  onChange={(e) => { isDirtyRef.current = true; setEditName(e.target.value); }}
                   className="w-full px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
                   placeholder="Enter box name"
                   autoFocus
@@ -121,13 +150,32 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
                     <button
                       key={c}
                       type="button"
-                      onClick={() => setEditColor(c)}
+                      onClick={() => { isDirtyRef.current = true; setEditColor(c); }}
                       className={`w-8 h-8 rounded-lg transition-all ${
                         editColor === c ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
                       }`}
                       style={{ backgroundColor: c }}
                     />
                   ))}
+                  {/* Custom color picker */}
+                  <label
+                    className={`relative w-8 h-8 rounded-lg cursor-pointer transition-all hover:scale-105 overflow-hidden ${
+                      !presetColors.includes(editColor) ? 'ring-2 ring-white scale-110' : ''
+                    }`}
+                    style={{ backgroundColor: editColor }}
+                  >
+                    <input
+                      type="color"
+                      value={editColor}
+                      onChange={(e) => { isDirtyRef.current = true; setEditColor(e.target.value); }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-white/20 to-transparent">
+                      <svg className="w-4 h-4 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                      </svg>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -138,26 +186,19 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
                 </label>
                 <textarea
                   value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
+                  onChange={(e) => { isDirtyRef.current = true; setEditDescription(e.target.value); }}
                   className="w-full px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all resize-none"
                   rows={2}
                   placeholder="Optional description"
                 />
               </div>
 
-              {/* Link URL Input */}
-              <div>
-                <label className="block text-xs font-medium text-[#6b6b7a] uppercase tracking-wider mb-2">
-                  Link URL
-                </label>
-                <input
-                  type="url"
-                  value={editLinkUrl}
-                  onChange={(e) => setEditLinkUrl(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#ea2127]/50 focus:ring-2 focus:ring-[#ea2127]/20 transition-all"
-                  placeholder="https://... (optional)"
-                />
-              </div>
+              {/* Links */}
+              <LinkManager
+                links={editLinks}
+                onChange={(links) => { isDirtyRef.current = true; setEditLinks(links); }}
+                isEditing={true}
+              />
 
               {/* Text Size Control */}
               <div>
@@ -203,26 +244,18 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
                 </div>
               )}
 
-              {/* Link */}
-              {box.link_url && (
-                <div>
-                  <label className="block text-xs font-medium text-[#6b6b7a] uppercase tracking-wider mb-2">
-                    Link
-                  </label>
-                  <a
-                    href={box.link_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#ea2127] to-[#d11920] hover:from-[#ff3b42] hover:to-[#ea2127] text-white rounded-xl font-medium transition-all shadow-lg shadow-[#ea2127]/20 group"
-                  >
-                    <FaExternalLinkAlt className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                    <span>Open Link</span>
-                  </a>
-                  <p className="mt-2 text-xs text-[#5a5a68] truncate">
-                    {box.link_url}
-                  </p>
-                </div>
-              )}
+              {/* Links */}
+              <LinkManager
+                links={
+                  box.links && box.links.length > 0
+                    ? box.links
+                    : box.link_url
+                    ? [{ url: box.link_url, type: detectLinkType(box.link_url) }]
+                    : []
+                }
+                onChange={() => {}}
+                isEditing={false}
+              />
 
               {/* Color indicator */}
               <div>
@@ -239,38 +272,6 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
                   </span>
                 </div>
               </div>
-
-              {/* Text Size Control */}
-              {canEdit && (
-                <div>
-                  <label className="block text-xs font-medium text-[#6b6b7a] uppercase tracking-wider mb-2">
-                    Text Size
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min="2"
-                      max="24"
-                      step="1"
-                      value={currentTextSize}
-                      onChange={(e) => {
-                        const newSize = parseInt(e.target.value, 10);
-                        onChange?.(box.id, { text_size: newSize });
-                      }}
-                      className="flex-1 h-2 bg-[#2a2a35] rounded-lg appearance-none cursor-pointer accent-[#ea2127]"
-                    />
-                    <span className="text-[#8b8b9a] text-sm font-mono w-8 text-right">
-                      {currentTextSize}px
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => onChange?.(box.id, { text_size: null })}
-                    className="mt-2 text-xs text-[#6b6b7a] hover:text-[#ea2127] transition-colors"
-                  >
-                    Reset to Auto
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -278,39 +279,36 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
         {/* Footer Actions */}
         {canEdit && (
           <div className="p-4 border-t border-[#2a2a35] mt-auto">
-            {isEditing ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="px-4 py-3 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-xl font-medium transition-all border border-[#ea2127]/30"
-                >
-                  <FaTrash className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleSaveChanges}
-                  disabled={!editName.trim()}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] disabled:from-[#3a3a48] disabled:to-[#3a3a48] text-white rounded-xl font-medium transition-all shadow-lg shadow-[#10b981]/20 disabled:shadow-none"
-                >
-                  <FaSave className="w-4 h-4" />
-                  <span>Save</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
+            <div className="flex gap-2">
+              {!isEditing && (
                 <button
                   onClick={() => onEdit?.(box)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1a1a1f] hover:bg-[#252530] text-[#8b8b9a] hover:text-white rounded-xl font-medium transition-all border border-[#2a2a35]"
                 >
                   <FaPencilAlt className="w-4 h-4" />
-                  <span>Edit</span>
+                  <span>Edit Data</span>
                 </button>
+              )}
+              {isEditing && (
                 <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="px-4 py-3 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-xl font-medium transition-all border border-[#ea2127]/30"
+                  onClick={() => onCancelEdit?.()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1a1a1f] hover:bg-[#252530] text-[#8b8b9a] hover:text-white rounded-xl font-medium transition-all border border-[#2a2a35]"
                 >
-                  <FaTrash className="w-4 h-4" />
+                  <FaTimes className="w-4 h-4" />
+                  <span>Cancel</span>
                 </button>
-              </div>
+              )}
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className={`${isEditing ? '' : ''} px-4 py-3 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-xl font-medium transition-all border border-[#ea2127]/30`}
+              >
+                <FaTrash className="w-4 h-4" />
+              </button>
+            </div>
+            {isEditing && (
+              <p className="mt-3 text-xs text-[#6b6b7a] text-center">
+                Use the Save button in the toolbar to save changes
+              </p>
             )}
           </div>
         )}

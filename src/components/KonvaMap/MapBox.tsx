@@ -2,11 +2,20 @@ import React, { useRef, useEffect } from 'react';
 import { Group, Rect, Text } from 'react-konva';
 import Konva from 'konva';
 
+// Link types that can be auto-detected
+export type LinkType = 'trello' | 'clickup' | 'google_drive' | 'generic';
+
+export interface BoxLink {
+  url: string;
+  type: LinkType;
+}
+
 export interface MapBoxData {
   id: string;
   name: string;
   description: string | null;
-  link_url: string;
+  link_url: string; // Legacy field, kept for backwards compatibility
+  links: BoxLink[]; // New multi-link field
   x_position: number;
   y_position: number;
   width: number;
