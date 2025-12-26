@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPencilAlt, FaTrash, FaSearch, FaTimes, FaLink, FaBoxes, FaExternalLinkAlt, FaSave } from 'react-icons/fa';
+import { FaPencilAlt, FaTrash, FaSearch, FaTimes, FaLink, FaBoxes, FaExternalLinkAlt, FaSave, FaMapMarkerAlt } from 'react-icons/fa';
 import type { MapBoxData, BoxLink } from './MapBox';
 import ConfirmDialog from './ConfirmDialog';
 import LinkManager, { detectLinkType } from './LinkManager';
@@ -36,6 +36,7 @@ interface ListViewProps {
   onEditBox: (box: MapBoxData) => void;
   onSaveBox: (box: MapBoxData) => void;
   onDeleteBox: (box: MapBoxData) => void;
+  onLocateBox: (box: MapBoxData) => void;
   canEdit: boolean;
 }
 
@@ -45,6 +46,7 @@ const ListView: React.FC<ListViewProps> = ({
   onSearchChange,
   onSaveBox,
   onDeleteBox,
+  onLocateBox,
   canEdit,
 }) => {
   const [boxToDelete, setBoxToDelete] = useState<MapBoxData | null>(null);
@@ -244,6 +246,15 @@ const ListView: React.FC<ListViewProps> = ({
                           <span className="text-xs text-[#6b6b7a]">{links.length}</span>
                         </div>
                       )}
+
+                      {/* Locate on map button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onLocateBox(box); }}
+                        className="p-2 text-[#6b6b7a] hover:text-[#10b981] hover:bg-[#10b981]/10 rounded-lg transition-colors"
+                        title="Show on map"
+                      >
+                        <FaMapMarkerAlt className="w-3.5 h-3.5" />
+                      </button>
 
                       {/* Actions - show on hover */}
                       {canEdit && (

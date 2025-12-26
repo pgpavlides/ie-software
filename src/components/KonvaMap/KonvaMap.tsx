@@ -42,6 +42,7 @@ const KonvaMap: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const pendingLocateBoxRef = useRef<MapBoxData | null>(null);
 
   // Auth
   const { hasRole, user } = useAuthStore();
@@ -303,6 +304,34 @@ const KonvaMap: React.FC = () => {
     }
   };
 
+  // Locate box on map (switch to map view and center on box)
+  const handleLocateBox = (box: MapBoxData) => {
+    // Store the box to locate after view switches
+    pendingLocateBoxRef.current = box;
+    // Switch to map view
+    setShowListView(false);
+  };
+
+  // Effect to center on box after switching to map view
+  useEffect(() => {
+    if (!showListView && pendingLocateBoxRef.current && backgroundImage && stageSize.width > 0) {
+      const box = pendingLocateBoxRef.current;
+      pendingLocateBoxRef.current = null; // Clear the ref
+
+      // Calculate box center in stage coordinates (using scaledWidth/Height + offset)
+      const boxCenterX = (box.x_position + box.width / 2) * scaledWidth + offsetX;
+      const boxCenterY = (box.y_position + box.height / 2) * scaledHeight + offsetY;
+
+      // Calculate stage position to center the box on screen
+      const newX = stageSize.width / 2 - boxCenterX * zoomLevel;
+      const newY = stageSize.height / 2 - boxCenterY * zoomLevel;
+
+      setStagePosition({ x: newX, y: newY });
+      setSelectedBoxId(box.id);
+      setViewingBox(box);
+    }
+  }, [showListView, backgroundImage, stageSize, zoomLevel, scaledWidth, scaledHeight, offsetX, offsetY]);
+
   // Enter placement mode for adding new box
   const handleAddBox = () => {
     setEditingBox(null);
@@ -469,6 +498,7 @@ const KonvaMap: React.FC = () => {
             onEditBox={handleEditBox}
             onSaveBox={handleSaveBoxFromList}
             onDeleteBox={handleDeleteBox}
+            onLocateBox={handleLocateBox}
             canEdit={canEdit}
           />
         ) : (
