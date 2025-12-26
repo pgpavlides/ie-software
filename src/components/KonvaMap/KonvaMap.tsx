@@ -33,11 +33,6 @@ const KonvaMap: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
 
-  // Touch gesture state
-  const lastTouchDistanceRef = useRef<number | null>(null);
-  const lastTouchCenterRef = useRef<{ x: number; y: number } | null>(null);
-  const isDraggingRef = useRef(false);
-
   // Pending changes state (tracks unsaved modifications)
   const [pendingChanges, setPendingChanges] = useState<Record<string, Partial<MapBoxData>>>({});
   // Original data before editing (for cancel/revert)
@@ -495,112 +490,99 @@ const KonvaMap: React.FC = () => {
     setStagePosition(newPos);
   };
 
-  // Calculate distance between two touch points
-  const getTouchDistance = (touches: TouchList): number => {
-    if (touches.length < 2) return 0;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
+  // Setup touch gesture handling on Konva's container
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !isMobile) return;
 
-  // Calculate center point between two touches
-  const getTouchCenter = (touches: TouchList): { x: number; y: number } => {
-    if (touches.length < 2) {
-      return { x: touches[0].clientX, y: touches[0].clientY };
-    }
-    return {
+    const container = stage.container();
+    container.style.touchAction = 'none';
+
+    let lastDist = 0;
+    let lastCenter = { x: 0, y: 0 };
+    let isPinching = false;
+
+    const getDistance = (touches: TouchList) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const getCenter = (touches: TouchList) => ({
       x: (touches[0].clientX + touches[1].clientX) / 2,
       y: (touches[0].clientY + touches[1].clientY) / 2,
+    });
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        isPinching = true;
+        lastDist = getDistance(e.touches);
+        lastCenter = getCenter(e.touches);
+      }
     };
-  };
 
-  // Handle touch start
-  const handleTouchStart = (e: Konva.KonvaEventObject<TouchEvent>) => {
-    const touches = e.evt.touches;
-    if (touches.length === 2) {
-      // Start pinch gesture
-      e.evt.preventDefault();
-      lastTouchDistanceRef.current = getTouchDistance(touches);
-      lastTouchCenterRef.current = getTouchCenter(touches);
-      isDraggingRef.current = false;
-    } else if (touches.length === 1) {
-      isDraggingRef.current = true;
-    }
-  };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && isPinching) {
+        e.preventDefault();
 
-  // Handle touch move (pinch-to-zoom + pan)
-  const handleTouchMove = (e: Konva.KonvaEventObject<TouchEvent>) => {
-    const touches = e.evt.touches;
-    const stage = stageRef.current;
-    if (!stage) return;
+        const newDist = getDistance(e.touches);
+        const newCenter = getCenter(e.touches);
 
-    if (touches.length === 2) {
-      // Pinch gesture for zoom - only update stage directly, sync state on touch end
-      e.evt.preventDefault();
-
-      const newDistance = getTouchDistance(touches);
-      const newCenter = getTouchCenter(touches);
-
-      if (lastTouchDistanceRef.current && lastTouchCenterRef.current) {
-        // Calculate zoom based on current stage scale (not React state)
-        const currentScale = stage.scaleX();
-        const scale = newDistance / lastTouchDistanceRef.current;
-        const newScale = Math.max(0.5, Math.min(5, currentScale * scale));
-
-        // Get stage container position
-        const container = stage.container();
         const rect = container.getBoundingClientRect();
+        const pointX = newCenter.x - rect.left;
+        const pointY = newCenter.y - rect.top;
 
-        // Calculate pinch center relative to stage
-        const pinchCenterX = newCenter.x - rect.left;
-        const pinchCenterY = newCenter.y - rect.top;
+        // Calculate scale change
+        const scaleChange = newDist / lastDist;
+        const oldScale = stage.scaleX();
+        const newScale = Math.max(0.5, Math.min(5, oldScale * scaleChange));
 
-        // Calculate new position to zoom towards pinch center
-        const currentPos = stage.position();
+        // Calculate new position
         const mousePointTo = {
-          x: (pinchCenterX - currentPos.x) / currentScale,
-          y: (pinchCenterY - currentPos.y) / currentScale,
+          x: (pointX - stage.x()) / oldScale,
+          y: (pointY - stage.y()) / oldScale,
         };
 
-        // Also handle pan during pinch
-        const dx = newCenter.x - lastTouchCenterRef.current.x;
-        const dy = newCenter.y - lastTouchCenterRef.current.y;
+        // Account for pan movement
+        const dx = newCenter.x - lastCenter.x;
+        const dy = newCenter.y - lastCenter.y;
 
         const newPos = {
-          x: pinchCenterX - mousePointTo.x * newScale + dx,
-          y: pinchCenterY - mousePointTo.y * newScale + dy,
+          x: pointX - mousePointTo.x * newScale + dx,
+          y: pointY - mousePointTo.y * newScale + dy,
         };
 
-        // Only update stage directly (no React state) for smooth 60fps animation
-        stage.position(newPos);
         stage.scale({ x: newScale, y: newScale });
+        stage.position(newPos);
         stage.batchDraw();
+
+        lastDist = newDist;
+        lastCenter = newCenter;
       }
+    };
 
-      lastTouchDistanceRef.current = newDistance;
-      lastTouchCenterRef.current = newCenter;
-    }
-  };
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        isPinching = false;
+        // Sync React state
+        setZoomLevel(stage.scaleX());
+        setStagePosition(stage.position());
+      }
+    };
 
-  // Handle touch end - sync React state with stage position/scale
-  const handleTouchEnd = () => {
-    const stage = stageRef.current;
-    if (stage && lastTouchDistanceRef.current !== null) {
-      // Sync React state with final stage position/scale
-      setZoomLevel(stage.scaleX());
-      setStagePosition(stage.position());
-    }
-    lastTouchDistanceRef.current = null;
-    lastTouchCenterRef.current = null;
-    isDraggingRef.current = false;
-  };
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
 
-  // Handle stage drag for panning (optimized - only update state on drag end)
-  const handleStageDragMove = () => {
-    // Let Konva handle the visual update, don't update React state on every move
-    // This prevents lag by reducing re-renders
-  };
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMobile, stagePosition, zoomLevel]);
 
+  // Handle stage drag for panning (only for non-touch/mouse drag)
   const handleStageDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     if (e.target === e.target.getStage()) {
       // Only sync state when drag ends
@@ -652,15 +634,11 @@ const KonvaMap: React.FC = () => {
             onClick={handleStageClick}
             onTap={handleStageClick}
             onWheel={handleWheel}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
             scaleX={zoomLevel}
             scaleY={zoomLevel}
             x={stagePosition.x}
             y={stagePosition.y}
             draggable={true}
-            onDragMove={handleStageDragMove}
             onDragEnd={handleStageDragEnd}
           >
             {/* Background layer - optimized for performance */}
