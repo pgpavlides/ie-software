@@ -10,6 +10,7 @@ import UtilitiesPage from './components/UtilitiesPage';
 import OvertimesPage from './components/OvertimesPage';
 import ComponentsPage from './components/ComponentsPage';
 import { KonvaMap } from './components/KonvaMap';
+import BoxInfoPage from './components/KonvaMap/BoxInfoPage';
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/auth/Login';
@@ -317,6 +318,7 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/box" element={<BoxInfoPage />} />
 
             {/* Protected Routes - Any authenticated user can access, menu filtering handles permissions */}
             <Route

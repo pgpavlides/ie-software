@@ -24,7 +24,7 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({
   if (!isOpen) return null;
 
   // Generate the URL that the QR code will point to
-  const qrUrl = `${baseUrl}/map?box=${box.id}`;
+  const qrUrl = `${baseUrl}/box?id=${box.id}`;
 
   const handlePrint = () => {
     const printContent = printRef.current;
