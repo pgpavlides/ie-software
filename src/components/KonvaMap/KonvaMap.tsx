@@ -66,21 +66,42 @@ const KonvaMap: React.FC = () => {
   const offsetX = (stageSize.width - scaledWidth) / 2;
   const offsetY = (stageSize.height - scaledHeight) / 2;
 
-  // Handle resize
+  // Handle resize with ResizeObserver for reliable sizing
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
-        setStageSize({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
+        const { offsetWidth, offsetHeight } = containerRef.current;
+        // Only update if we have valid dimensions
+        if (offsetWidth > 0 && offsetHeight > 0) {
+          setStageSize({
+            width: offsetWidth,
+            height: offsetHeight,
+          });
+        }
       }
       setIsMobile(window.innerWidth < 768);
     };
 
+    // Initial calculation with slight delay to ensure layout is ready
     handleResize();
+    const initialTimeout = setTimeout(handleResize, 100);
+
+    // Use ResizeObserver for reliable container size tracking
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   // Fetch boxes from Supabase
