@@ -223,7 +223,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
         </svg>
       ),
       accent: 'from-[#06b6d4] to-[#22d3ee]',
-      roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head of Project Manager'],
+      roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager'],
     },
     {
       id: 'inventory',

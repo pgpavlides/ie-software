@@ -40,6 +40,7 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [roleSearchQuery, setRoleSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
 
   useEffect(() => {
@@ -142,16 +143,37 @@ export default function UserManagement() {
 
   const assignRole = async (userId: string, roleId: string) => {
     try {
+      const role = roles.find(r => r.id === roleId);
+      if (!role) return;
+
+      // Optimistically update UI first
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
+          user.id === userId
+            ? { ...user, roles: [...user.roles, role.name] }
+            : user
+        )
+      );
+
+      setShowRoleModal(false);
+      setSelectedUser(null);
+
       const { error } = await supabase.from('user_roles').insert({
         user_id: userId,
         role_id: roleId,
       });
 
-      if (error) throw error;
-
-      await fetchUsers();
-      setShowRoleModal(false);
-      setSelectedUser(null);
+      if (error) {
+        // Revert on error
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === userId
+              ? { ...user, roles: user.roles.filter(r => r !== role.name) }
+              : user
+          )
+        );
+        throw error;
+      }
     } catch (error: any) {
       console.error('Error assigning role:', error);
       alert(error.message || 'Failed to assign role');
@@ -163,15 +185,32 @@ export default function UserManagement() {
       const role = roles.find((r) => r.name === roleName);
       if (!role) return;
 
+      // Optimistically update UI first
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
+          user.id === userId
+            ? { ...user, roles: user.roles.filter(r => r !== roleName) }
+            : user
+        )
+      );
+
       const { error } = await supabase
         .from('user_roles')
         .delete()
         .eq('user_id', userId)
         .eq('role_id', role.id);
 
-      if (error) throw error;
-
-      await fetchUsers();
+      if (error) {
+        // Revert on error
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === userId
+              ? { ...user, roles: [...user.roles, roleName] }
+              : user
+          )
+        );
+        throw error;
+      }
     } catch (error: any) {
       console.error('Error removing role:', error);
       alert(error.message || 'Failed to remove role');
@@ -199,12 +238,23 @@ export default function UserManagement() {
     return matchesSearch;
   });
 
-  // Filter roles by selected department
-  const filteredRoles = selectedDepartment === 'all'
-    ? roles
-    : selectedDepartment === 'system'
-      ? roles.filter(r => !r.department_id)
-      : roles.filter(r => r.department_id === selectedDepartment);
+  // Filter roles by selected department and search query
+  const filteredRoles = roles.filter(role => {
+    // Filter by department
+    const matchesDepartment = selectedDepartment === 'all'
+      ? true
+      : selectedDepartment === 'system'
+        ? !role.department_id
+        : role.department_id === selectedDepartment;
+
+    // Filter by search query
+    const matchesSearch = roleSearchQuery.trim() === ''
+      ? true
+      : role.name.toLowerCase().includes(roleSearchQuery.toLowerCase()) ||
+        role.description?.toLowerCase().includes(roleSearchQuery.toLowerCase());
+
+    return matchesDepartment && matchesSearch;
+  });
 
   return (
     <div className="min-h-full bg-[#0f0f12] relative overflow-hidden">
@@ -447,6 +497,7 @@ export default function UserManagement() {
                     onClick={() => {
                       setShowRoleModal(false);
                       setSelectedUser(null);
+                      setRoleSearchQuery('');
                     }}
                     className="p-2 text-[#6b6b7a] hover:text-white hover:bg-[#1f1f28] rounded-lg transition-colors"
                   >
@@ -456,8 +507,22 @@ export default function UserManagement() {
                   </button>
                 </div>
 
+                {/* Role Search */}
+                <div className="relative mt-4">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5a5a68]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={roleSearchQuery}
+                    onChange={(e) => setRoleSearchQuery(e.target.value)}
+                    placeholder="Search roles..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl text-white placeholder-[#5a5a68] focus:outline-none focus:border-[#7c3aed]/50 focus:ring-2 focus:ring-[#7c3aed]/20 transition-all text-sm"
+                  />
+                </div>
+
                 {/* Department Filter */}
-                <div className="flex flex-wrap gap-2 mt-4">
+                <div className="flex flex-wrap gap-2 mt-3">
                   <button
                     onClick={() => setSelectedDepartment('all')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -573,6 +638,7 @@ export default function UserManagement() {
                     setShowRoleModal(false);
                     setSelectedUser(null);
                     setSelectedDepartment('all');
+                    setRoleSearchQuery('');
                   }}
                   className="w-full px-4 py-3 bg-[#1f1f28] hover:bg-[#2a2a38] text-white rounded-xl transition-colors"
                 >

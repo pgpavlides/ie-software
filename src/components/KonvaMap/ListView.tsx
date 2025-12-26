@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaPencilAlt, FaExternalLinkAlt, FaTrash, FaSearch } from 'react-icons/fa';
 import type { MapBoxData } from './MapBox';
+import ConfirmDialog from './ConfirmDialog';
 
 interface ListViewProps {
   boxes: MapBoxData[];
@@ -19,6 +20,8 @@ const ListView: React.FC<ListViewProps> = ({
   onDeleteBox,
   canEdit,
 }) => {
+  const [boxToDelete, setBoxToDelete] = useState<MapBoxData | null>(null);
+
   const filteredBoxes = boxes.filter((box) => {
     const query = searchQuery.toLowerCase();
     return (
@@ -108,11 +111,7 @@ const ListView: React.FC<ListViewProps> = ({
                       <FaPencilAlt />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Delete "${box.name}"?`)) {
-                          onDeleteBox(box);
-                        }
-                      }}
+                      onClick={() => setBoxToDelete(box)}
                       className="p-2 text-[#6b6b7a] hover:text-[#ea2127] hover:bg-[#ea2127]/10 rounded-lg transition-colors"
                       title="Delete box"
                     >
@@ -140,6 +139,23 @@ const ListView: React.FC<ListViewProps> = ({
           </button>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={boxToDelete !== null}
+        title="Delete Box"
+        message={boxToDelete ? `Are you sure you want to delete "${boxToDelete.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (boxToDelete) {
+            onDeleteBox(boxToDelete);
+            setBoxToDelete(null);
+          }
+        }}
+        onCancel={() => setBoxToDelete(null)}
+      />
     </div>
   );
 };

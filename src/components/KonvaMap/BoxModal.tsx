@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaSave, FaTrash } from 'react-icons/fa';
 import type { MapBoxData } from './MapBox';
+import ConfirmDialog from './ConfirmDialog';
 
 interface BoxModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ const BoxModal: React.FC<BoxModalProps> = ({
   const [description, setDescription] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [color, setColor] = useState('#ea2127');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (editingBox) {
@@ -64,6 +66,7 @@ const BoxModal: React.FC<BoxModalProps> = ({
       ...position,
       ...size,
       color,
+      text_size: editingBox?.text_size ?? null,
     });
     onClose();
   };
@@ -159,12 +162,7 @@ const BoxModal: React.FC<BoxModalProps> = ({
               {editingBox && onDelete && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm('Are you sure you want to delete this box?')) {
-                      onDelete();
-                      onClose();
-                    }
-                  }}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="px-4 py-3 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-xl font-medium transition-all border border-[#ea2127]/30"
                 >
                   <FaTrash />
@@ -189,6 +187,22 @@ const BoxModal: React.FC<BoxModalProps> = ({
           </form>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Delete Box"
+        message={editingBox ? `Are you sure you want to delete "${editingBox.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete?.();
+          onClose();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 };

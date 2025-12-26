@@ -6,6 +6,7 @@ import supabase from '../../lib/supabase';
 import { useAuthStore } from '../../store/authStore';
 import MapBox, { type MapBoxData } from './MapBox';
 import BoxModal from './BoxModal';
+import BoxInfoPanel from './BoxInfoPanel';
 import MapToolbar from './MapToolbar';
 import ListView from './ListView';
 
@@ -14,6 +15,7 @@ const KonvaMap: React.FC = () => {
   const [mapBoxes, setMapBoxes] = useState<MapBoxData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
+  const [viewingBox, setViewingBox] = useState<MapBoxData | null>(null);
   const [selectedTool, setSelectedTool] = useState<'select' | 'edit'>('select');
   const [showListView, setShowListView] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,9 +24,17 @@ const KonvaMap: React.FC = () => {
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [isMobile, setIsMobile] = useState(false);
 
+  // Placement mode state
+  const [isPlacingBox, setIsPlacingBox] = useState(false);
+  const [newBoxPosition, setNewBoxPosition] = useState<{ x: number; y: number } | null>(null);
+  const [animatingBoxId, setAnimatingBoxId] = useState<string | null>(null);
+
   // Zoom and pan state
   const [zoomLevel, setZoomLevel] = useState(1);
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
+
+  // Pending changes state (tracks unsaved modifications)
+  const [pendingChanges, setPendingChanges] = useState<Record<string, Partial<MapBoxData>>>({});
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -35,10 +45,11 @@ const KonvaMap: React.FC = () => {
   const { hasRole, user } = useAuthStore();
   const canEdit = hasRole('Super Admin') || hasRole('Boss') ||
                   hasRole('Admin') || hasRole('Architect') ||
-                  hasRole('Project Manager');
+                  hasRole('Project Manager') || hasRole('Head Project Manager') ||
+                  hasRole('CNC');
 
-  // Load background image
-  const [backgroundImage] = useImage('/company_map.png');
+  // Load background image (compressed webp for faster loading)
+  const [backgroundImage] = useImage('/company_map_compressed_2.webp');
   const imageWidth = backgroundImage?.width || 1920;
   const imageHeight = backgroundImage?.height || 1080;
 
@@ -108,32 +119,71 @@ const KonvaMap: React.FC = () => {
     }
   }, [selectedBoxId, selectedTool, canEdit]);
 
-  // Handle stage click (deselect)
+  // Handle stage click (deselect or place box)
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     const clickedOnEmpty = e.target === e.target.getStage() ||
                           e.target.getClassName() === 'Image';
+
+    if (isPlacingBox && clickedOnEmpty) {
+      // Get click position relative to the scaled image
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      // Convert screen coordinates to image coordinates
+      const imageX = (pointer.x - stagePosition.x) / zoomLevel - offsetX;
+      const imageY = (pointer.y - stagePosition.y) / zoomLevel - offsetY;
+
+      // Convert to percentage of image
+      const xPercent = Math.max(0, Math.min(0.85, imageX / scaledWidth));
+      const yPercent = Math.max(0, Math.min(0.92, imageY / scaledHeight));
+
+      // Create box immediately with default values
+      handleCreateBoxAtPosition(xPercent, yPercent);
+      setIsPlacingBox(false);
+      return;
+    }
+
     if (clickedOnEmpty) {
       setSelectedBoxId(null);
     }
   };
 
-  // Handle box change (drag/resize)
-  const handleBoxChange = async (boxId: string, attrs: Partial<MapBoxData>) => {
+  // Handle box change (drag/resize) - stores locally, doesn't save immediately
+  const handleBoxChange = (boxId: string, attrs: Partial<MapBoxData>) => {
+    // Update local state for immediate visual feedback
+    setMapBoxes(prev =>
+      prev.map(box => box.id === boxId ? { ...box, ...attrs } : box)
+    );
+
+    // Track pending changes
+    setPendingChanges(prev => ({
+      ...prev,
+      [boxId]: { ...prev[boxId], ...attrs }
+    }));
+  };
+
+  // Save all pending changes to database
+  const handleSaveChanges = async () => {
     try {
-      const { error } = await supabase
-        .from('map_boxes')
-        .update(attrs)
-        .eq('id', boxId);
-
-      if (error) throw error;
-
-      setMapBoxes(prev =>
-        prev.map(box => box.id === boxId ? { ...box, ...attrs } : box)
+      const updates = Object.entries(pendingChanges).map(([boxId, attrs]) =>
+        supabase
+          .from('map_boxes')
+          .update(attrs)
+          .eq('id', boxId)
       );
+
+      await Promise.all(updates);
+      setPendingChanges({}); // Clear pending changes after successful save
     } catch (error) {
-      console.error('Error updating box:', error);
+      console.error('Error saving changes:', error);
     }
   };
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = Object.keys(pendingChanges).length > 0;
 
   // Handle save (create/update)
   const handleSaveBox = async (data: Omit<MapBoxData, 'id' | 'created_by' | 'is_active'>) => {
@@ -148,19 +198,28 @@ const KonvaMap: React.FC = () => {
         if (error) throw error;
       } else {
         // Create new
-        const { error } = await supabase
+        const { data: newBox, error } = await supabase
           .from('map_boxes')
           .insert([{
             ...data,
             is_active: true,
             created_by: user?.id,
-          }]);
+          }])
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Trigger animation for new box
+        if (newBox) {
+          setAnimatingBoxId(newBox.id);
+          setTimeout(() => setAnimatingBoxId(null), 400); // Animation duration
+        }
       }
 
       await fetchBoxes();
       setEditingBox(null);
+      setNewBoxPosition(null);
     } catch (error) {
       console.error('Error saving box:', error);
     }
@@ -184,10 +243,61 @@ const KonvaMap: React.FC = () => {
     }
   };
 
-  // Open modal to add new box
+  // Enter placement mode for adding new box
   const handleAddBox = () => {
     setEditingBox(null);
-    setIsModalOpen(true);
+    setNewBoxPosition(null);
+    setIsPlacingBox(true);
+  };
+
+  // Cancel placement mode
+  const handleCancelPlacement = () => {
+    setIsPlacingBox(false);
+    setNewBoxPosition(null);
+  };
+
+  // Create box immediately at clicked position
+  const handleCreateBoxAtPosition = async (xPercent: number, yPercent: number) => {
+    try {
+      const newBoxData = {
+        name: 'New Box',
+        description: null,
+        link_url: '',
+        x_position: xPercent,
+        y_position: yPercent,
+        width: 0.06,
+        height: 0.03,
+        color: '#ea2127',
+        text_size: null,
+        is_active: true,
+        created_by: user?.id,
+      };
+
+      const { data: newBox, error } = await supabase
+        .from('map_boxes')
+        .insert([newBoxData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (newBox) {
+        // Add to local state immediately
+        setMapBoxes(prev => [...prev, newBox]);
+
+        // Trigger animation
+        setAnimatingBoxId(newBox.id);
+        setTimeout(() => setAnimatingBoxId(null), 400);
+
+        // Open side panel for editing (with slight delay for animation)
+        setTimeout(() => {
+          setViewingBox(newBox);
+          setEditingBox(newBox);
+        }, 150);
+      }
+    } catch (error) {
+      console.error('Error creating box:', error);
+    }
   };
 
   // Open modal to edit box
@@ -196,11 +306,12 @@ const KonvaMap: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Double-click to edit
+  // Double-click to edit (opens side panel in edit mode)
   const handleBoxDoubleClick = (boxId: string) => {
     const box = mapBoxes.find(b => b.id === boxId);
     if (box && canEdit && selectedTool === 'edit') {
-      handleEditBox(box);
+      setViewingBox(box);
+      setEditingBox(box);
     }
   };
 
@@ -310,7 +421,7 @@ const KonvaMap: React.FC = () => {
             scaleY={zoomLevel}
             x={stagePosition.x}
             y={stagePosition.y}
-            draggable={selectedTool === 'select'}
+            draggable={true}
             onDragMove={handleStageDragMove}
             onDragEnd={handleStageDragEnd}
           >
@@ -335,8 +446,11 @@ const KonvaMap: React.FC = () => {
                   key={box.id}
                   box={box}
                   isSelected={selectedBoxId === box.id}
+                  isViewing={viewingBox?.id === box.id}
+                  isAnimating={animatingBoxId === box.id}
                   onSelect={() => {
                     setSelectedBoxId(box.id);
+                    setViewingBox(box); // Also show info panel when selecting in edit mode
                     if (canEdit && selectedTool === 'edit') {
                       // Double-click detection
                       const now = Date.now();
@@ -346,6 +460,10 @@ const KonvaMap: React.FC = () => {
                       }
                       (box as any)._lastClick = now;
                     }
+                  }}
+                  onView={() => {
+                    setViewingBox(box);
+                    setSelectedBoxId(null); // Clear edit selection when viewing
                   }}
                   onChange={(attrs) => handleBoxChange(box.id, attrs)}
                   canEdit={canEdit}
@@ -358,15 +476,6 @@ const KonvaMap: React.FC = () => {
               {/* Transformer for resize handles */}
               <Transformer
                 ref={transformerRef}
-                boundBoxFunc={(oldBox, newBox) => {
-                  // Limit resize
-                  const minWidth = 60;
-                  const minHeight = 40;
-                  if (newBox.width < minWidth || newBox.height < minHeight) {
-                    return oldBox;
-                  }
-                  return newBox;
-                }}
                 enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
                 anchorSize={isMobile ? 20 : 12}
                 anchorCornerRadius={isMobile ? 10 : 6}
@@ -421,34 +530,64 @@ const KonvaMap: React.FC = () => {
           </div>
         )}
 
-        {/* Toolbar */}
-        {!showListView && (
-          <MapToolbar
-            canEdit={canEdit}
-            selectedTool={selectedTool}
-            onToolChange={setSelectedTool}
-            onAddBox={handleAddBox}
-            boxCount={mapBoxes.length}
-            showListView={showListView}
-            onToggleView={() => setShowListView(!showListView)}
-          />
-        )}
-
-        {/* List view toggle for list view */}
-        {showListView && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-            <MapToolbar
-              canEdit={canEdit}
-              selectedTool={selectedTool}
-              onToolChange={setSelectedTool}
-              onAddBox={handleAddBox}
-              boxCount={mapBoxes.length}
-              showListView={showListView}
-              onToggleView={() => setShowListView(!showListView)}
-            />
+        {/* Placement Mode Notification */}
+        {isPlacingBox && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 animate-[fadeSlideDown_0.3s_ease-out]">
+            <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-[#10b981] to-[#059669] text-white rounded-2xl shadow-2xl shadow-[#10b981]/30">
+              <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+              <span className="font-medium">Click anywhere to place a box</span>
+              <button
+                onClick={handleCancelPlacement}
+                className="ml-2 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
+
+        {/* Toolbar - always rendered at the bottom */}
+        <MapToolbar
+          canEdit={canEdit}
+          selectedTool={selectedTool}
+          onToolChange={setSelectedTool}
+          onAddBox={handleAddBox}
+          showListView={showListView}
+          onToggleView={() => setShowListView(!showListView)}
+          hasUnsavedChanges={hasUnsavedChanges}
+          onSave={handleSaveChanges}
+        />
       </div>
+
+      {/* Info Panel - slides from right */}
+      <BoxInfoPanel
+        box={viewingBox}
+        isOpen={viewingBox !== null}
+        isEditing={editingBox !== null && viewingBox?.id === editingBox?.id}
+        onClose={() => {
+          setViewingBox(null);
+          setEditingBox(null);
+        }}
+        onEdit={(box) => {
+          setEditingBox(box);
+        }}
+        onDelete={(box) => {
+          setViewingBox(null);
+          setEditingBox(null);
+          handleDeleteBox(box);
+        }}
+        onChange={(boxId, attrs) => {
+          handleBoxChange(boxId, attrs);
+          // Update viewingBox to reflect changes immediately
+          if (viewingBox && viewingBox.id === boxId) {
+            setViewingBox({ ...viewingBox, ...attrs });
+          }
+        }}
+        onSaveEdit={() => {
+          setEditingBox(null);
+        }}
+        canEdit={canEdit}
+      />
 
       {/* Modal */}
       <BoxModal
@@ -456,11 +595,12 @@ const KonvaMap: React.FC = () => {
         onClose={() => {
           setIsModalOpen(false);
           setEditingBox(null);
+          setNewBoxPosition(null);
         }}
         onSave={handleSaveBox}
         onDelete={editingBox ? () => handleDeleteBox(editingBox) : undefined}
         editingBox={editingBox}
-        defaultPosition={{ x: 0.1, y: 0.1 }}
+        defaultPosition={newBoxPosition || { x: 0.1, y: 0.1 }}
       />
     </div>
   );

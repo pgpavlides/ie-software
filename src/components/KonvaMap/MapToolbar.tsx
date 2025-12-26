@@ -1,14 +1,15 @@
 import React from 'react';
-import { FaMousePointer, FaPencilAlt, FaPlus, FaList, FaMap } from 'react-icons/fa';
+import { FaMousePointer, FaPencilAlt, FaPlus, FaList, FaMap, FaSave } from 'react-icons/fa';
 
 interface MapToolbarProps {
   canEdit: boolean;
   selectedTool: 'select' | 'edit';
   onToolChange: (tool: 'select' | 'edit') => void;
   onAddBox: () => void;
-  boxCount: number;
   showListView: boolean;
   onToggleView: () => void;
+  hasUnsavedChanges: boolean;
+  onSave: () => void;
 }
 
 const MapToolbar: React.FC<MapToolbarProps> = ({
@@ -16,9 +17,10 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
   selectedTool,
   onToolChange,
   onAddBox,
-  boxCount,
   showListView,
   onToggleView,
+  hasUnsavedChanges,
+  onSave,
 }) => {
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
@@ -54,19 +56,19 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
           )}
         </div>
 
-        {/* Divider */}
-        <div className="w-px h-8 bg-[#2a2a35]" />
-
-        {/* Add button */}
+        {/* Add button - only show when can edit and in edit mode */}
         {canEdit && selectedTool === 'edit' && (
-          <button
-            onClick={onAddBox}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ea2127] to-[#d11920] hover:from-[#ff3b42] hover:to-[#ea2127] text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-[#ea2127]/20"
-            title="Add new box"
-          >
-            <FaPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add Box</span>
-          </button>
+          <>
+            <div className="w-px h-8 bg-[#2a2a35]" />
+            <button
+              onClick={onAddBox}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ea2127] to-[#d11920] hover:from-[#ff3b42] hover:to-[#ea2127] text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-[#ea2127]/20"
+              title="Add new box"
+            >
+              <FaPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Box</span>
+            </button>
+          </>
         )}
 
         {/* Divider */}
@@ -86,18 +88,24 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
           <span className="hidden sm:inline">{showListView ? 'Map' : 'List'}</span>
         </button>
 
-        {/* Box count */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0f0f12] rounded-lg">
-          <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-          <span className="text-[#8b8b9a] text-sm font-medium">{boxCount} boxes</span>
-        </div>
-
         {/* Edit access badge */}
         {canEdit && (
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#ea2127]/10 border border-[#ea2127]/20 rounded-lg">
             <div className="w-1.5 h-1.5 rounded-full bg-[#ea2127]" />
             <span className="text-[#ea2127] text-xs font-medium">Edit Access</span>
           </div>
+        )}
+
+        {/* Save button - appears when there are unsaved changes */}
+        {hasUnsavedChanges && (
+          <button
+            onClick={onSave}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-[#10b981]/20 animate-pulse"
+            title="Save changes"
+          >
+            <FaSave className="w-4 h-4" />
+            <span className="hidden sm:inline">Save</span>
+          </button>
         )}
       </div>
 

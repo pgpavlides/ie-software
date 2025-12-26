@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Group, Rect, Text } from 'react-konva';
 import Konva from 'konva';
 
@@ -12,6 +12,7 @@ export interface MapBoxData {
   width: number;
   height: number;
   color: string;
+  text_size: number | null; // Custom text size (null = auto)
   is_active: boolean;
   created_by: string;
 }
@@ -19,7 +20,10 @@ export interface MapBoxData {
 interface MapBoxProps {
   box: MapBoxData;
   isSelected: boolean;
+  isViewing: boolean;
+  isAnimating?: boolean;
   onSelect: () => void;
+  onView: () => void;
   onChange: (attrs: Partial<MapBoxData>) => void;
   canEdit: boolean;
   selectedTool: 'select' | 'edit';
@@ -30,7 +34,10 @@ interface MapBoxProps {
 const MapBox: React.FC<MapBoxProps> = ({
   box,
   isSelected,
+  isViewing,
+  isAnimating = false,
   onSelect,
+  onView,
   onChange,
   canEdit,
   selectedTool,
@@ -38,30 +45,68 @@ const MapBox: React.FC<MapBoxProps> = ({
   imageHeight,
 }) => {
   const groupRef = useRef<Konva.Group>(null);
-  const textRef = useRef<Konva.Text>(null);
+  const rectRef = useRef<Konva.Rect>(null);
+  // Text doesn't need a ref
+
+  // Scale animation for new boxes
+  useEffect(() => {
+    if (isAnimating && groupRef.current) {
+      const group = groupRef.current;
+      // Start from scale 0
+      group.scaleX(0);
+      group.scaleY(0);
+      group.opacity(0);
+
+      // Animate to scale 1 with easing
+      group.to({
+        scaleX: 1,
+        scaleY: 1,
+        opacity: 1,
+        duration: 0.35,
+        easing: Konva.Easings.EaseOut,
+      });
+    }
+  }, [isAnimating]);
 
   // Convert percentage to pixels
   const x = box.x_position * imageWidth;
   const y = box.y_position * imageHeight;
-  const width = Math.max(60, box.width * imageWidth);
-  const height = Math.max(40, box.height * imageHeight);
+  const width = box.width * imageWidth;
+  const height = box.height * imageHeight;
 
-  // Calculate text properties
-  const fontSize = Math.min(14, Math.max(10, height * 0.3));
-  const padding = 8;
+  // Calculate size factor for scaling UI elements (based on smaller dimension)
+  const minDimension = Math.min(width, height);
+  const sizeFactor = Math.max(0.3, Math.min(1, minDimension / 60)); // 0.3 to 1 scale
 
-  // Truncate text to fit
-  const maxChars = Math.floor((width - padding * 2) / (fontSize * 0.6));
-  const displayName = box.name.length > maxChars
-    ? box.name.substring(0, maxChars - 2) + '..'
-    : box.name;
+  // Scale text properties based on box size (or use custom text_size if set)
+  // Default to 4px, allow down to 2px for very small boxes
+  const fontSize = box.text_size !== null ? box.text_size : 4;
+  const padding = Math.max(1, 3 * sizeFactor);
+
+  // Scale border and visual properties
+  const baseStrokeWidth = 2 * sizeFactor;
+  const cornerRadius = Math.max(2, 6 * sizeFactor);
+  const shadowBlur = Math.max(2, 8 * sizeFactor);
+
+  // Always show text - it will scale down with the box
+
+  // Sync rect dimensions and position when box props change
+  useEffect(() => {
+    if (rectRef.current) {
+      // Reset position to (0,0) within group - group handles absolute position
+      rectRef.current.x(0);
+      rectRef.current.y(0);
+      rectRef.current.scaleX(1);
+      rectRef.current.scaleY(1);
+      rectRef.current.width(width);
+      rectRef.current.height(height);
+    }
+  }, [box.width, box.height, box.x_position, box.y_position, width, height]);
 
   const handleClick = () => {
     if (selectedTool === 'select') {
-      // Open link in select mode
-      if (box.link_url) {
-        window.open(box.link_url, '_blank');
-      }
+      // Open info panel instead of link directly
+      onView();
     } else if (selectedTool === 'edit' && canEdit) {
       onSelect();
     }
@@ -80,27 +125,48 @@ const MapBox: React.FC<MapBoxProps> = ({
     });
   };
 
-  const handleTransformEnd = (_e: Konva.KonvaEventObject<Event>) => {
+  const handleTransformEnd = () => {
     if (!canEdit || selectedTool !== 'edit') return;
 
-    const node = groupRef.current;
-    if (!node) return;
+    const rect = rectRef.current;
+    const group = groupRef.current;
+    if (!rect || !group) return;
 
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
+    const scaleX = rect.scaleX();
+    const scaleY = rect.scaleY();
 
-    // Reset scale
-    node.scaleX(1);
-    node.scaleY(1);
+    // Calculate new dimensions
+    const newWidth = rect.width() * scaleX;
+    const newHeight = rect.height() * scaleY;
 
-    const newWidth = Math.max(60, width * scaleX);
-    const newHeight = Math.max(40, height * scaleY);
-    const newX = Math.max(0, Math.min(node.x(), imageWidth - newWidth));
-    const newY = Math.max(0, Math.min(node.y(), imageHeight - newHeight));
+    // When resizing from corners other than bottom-right, the rect moves within the group
+    // We need to account for this offset and apply it to the group position
+    const rectX = rect.x();
+    const rectY = rect.y();
+
+    // Calculate new group position (group pos + rect offset within group)
+    const newGroupX = group.x() + rectX;
+    const newGroupY = group.y() + rectY;
+
+    // Clamp to image bounds
+    const clampedX = Math.max(0, Math.min(newGroupX, imageWidth - newWidth));
+    const clampedY = Math.max(0, Math.min(newGroupY, imageHeight - newHeight));
+
+    // Reset rect position to (0,0) within group, reset scale, set new dimensions
+    rect.x(0);
+    rect.y(0);
+    rect.scaleX(1);
+    rect.scaleY(1);
+    rect.width(newWidth);
+    rect.height(newHeight);
+
+    // Update group position
+    group.x(clampedX);
+    group.y(clampedY);
 
     onChange({
-      x_position: newX / imageWidth,
-      y_position: newY / imageHeight,
+      x_position: clampedX / imageWidth,
+      y_position: clampedY / imageHeight,
       width: newWidth / imageWidth,
       height: newHeight / imageHeight,
     });
@@ -124,53 +190,42 @@ const MapBox: React.FC<MapBoxProps> = ({
       onClick={handleClick}
       onTap={handleClick}
       onDragEnd={handleDragEnd}
-      onTransformEnd={handleTransformEnd}
-      name={box.id}
     >
-      {/* Main rectangle */}
+      {/* Main rectangle - Transformer attaches to this via id */}
       <Rect
+        ref={rectRef}
+        id={box.id}
         width={width}
         height={height}
         fill={box.color}
-        stroke={isSelected ? '#ffffff' : darkenColor(box.color)}
-        strokeWidth={isSelected ? 3 : 2}
-        cornerRadius={6}
-        shadowColor="black"
-        shadowBlur={isSelected ? 15 : 8}
-        shadowOpacity={0.4}
-        shadowOffsetX={2}
-        shadowOffsetY={2}
+        stroke={isViewing ? '#ea2127' : isSelected ? '#ea2127' : darkenColor(box.color)}
+        strokeWidth={isViewing ? Math.max(2, 4 * sizeFactor) : isSelected ? Math.max(2, 3 * sizeFactor) : baseStrokeWidth}
+        cornerRadius={cornerRadius}
+        shadowColor={isViewing || isSelected ? '#ea2127' : 'black'}
+        shadowBlur={isViewing ? Math.max(10, 25 * sizeFactor) : isSelected ? Math.max(8, 20 * sizeFactor) : shadowBlur}
+        shadowOpacity={isViewing ? 0.8 : isSelected ? 0.7 : 0.4}
+        shadowOffsetX={isViewing || isSelected ? 0 : Math.max(1, 2 * sizeFactor)}
+        shadowOffsetY={isViewing || isSelected ? 0 : Math.max(1, 2 * sizeFactor)}
+        onTransformEnd={handleTransformEnd}
       />
 
-      {/* Box name label */}
+      {/* Box name label - always visible, scales with box */}
       <Text
-        ref={textRef}
-        text={displayName}
+        text={box.name}
         x={padding}
-        y={(height - fontSize) / 2}
+        y={padding}
         width={width - padding * 2}
+        height={height - padding * 2}
         fontSize={fontSize}
+        lineHeight={1.2}
         fontFamily="Outfit, sans-serif"
         fontStyle="600"
         fill="#ffffff"
         align="center"
         verticalAlign="middle"
+        wrap="word"
         listening={false}
       />
-
-      {/* Edit indicator when selected */}
-      {isSelected && canEdit && (
-        <Rect
-          x={width - 8}
-          y={-8}
-          width={16}
-          height={16}
-          fill="#ea2127"
-          cornerRadius={8}
-          stroke="#ffffff"
-          strokeWidth={2}
-        />
-      )}
     </Group>
   );
 };

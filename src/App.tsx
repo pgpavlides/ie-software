@@ -178,9 +178,9 @@ function RoomInfoWrapper() {
   const { typeId, country, city, roomName } = useParams<{ typeId: string; country: string; city: string; roomName: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   return (
-    <RoomInfo 
+    <RoomInfo
       cityName={decodeURIComponent(city!)}
       escapeRoomTypeId={typeId!}
       roomName={decodeURIComponent(roomName!)}
@@ -188,6 +188,96 @@ function RoomInfoWrapper() {
     />
   );
 }
+
+// Generic role-based route guard
+function RouteGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
+  const { hasRole, roles } = useAuthStore();
+
+  // Empty array means everyone has access
+  if (allowedRoles.length === 0) {
+    return <>{children}</>;
+  }
+
+  const hasAccess = allowedRoles.some(role => hasRole(role));
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-[#0f0f12] flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-30" />
+        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-[#ea2127] rounded-full blur-[180px] opacity-[0.08]" />
+
+        <div className="relative z-10 max-w-md w-full mx-4">
+          <div className="absolute -inset-px bg-gradient-to-b from-[#ea2127]/20 via-transparent to-transparent rounded-3xl blur-sm" />
+
+          <div className="relative bg-[#141418]/90 backdrop-blur-xl border border-[#1f1f28] rounded-3xl p-8 shadow-2xl text-center">
+            <div className="relative inline-block mb-6">
+              <div className="absolute inset-0 bg-[#ea2127] rounded-2xl blur-2xl opacity-20" />
+              <div className="relative w-20 h-20 mx-auto bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] rounded-2xl border border-[#2a2a35] flex items-center justify-center shadow-xl">
+                <svg className="w-10 h-10 text-[#ea2127]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-white mb-2">Access Restricted</h2>
+            <p className="text-[#6b6b7a] mb-6">You don't have permission to access this section.</p>
+
+            <div className="bg-[#1a1a1f] rounded-xl p-4 mb-6">
+              <p className="text-xs text-[#4a4a58] uppercase tracking-wider mb-2">Required Access</p>
+              <p className="text-[#ea2127] font-semibold">{allowedRoles.join(' or ')}</p>
+            </div>
+
+            {roles.length > 0 && (
+              <div className="mb-6">
+                <p className="text-xs text-[#4a4a58] uppercase tracking-wider mb-2">Your Current Roles</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {roles.map((role) => (
+                    <span key={role} className="px-3 py-1 bg-[#1f1f28] text-[#8b8b9a] rounded-lg text-sm">
+                      {role}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => window.history.back()}
+                className="flex-1 px-4 py-3 bg-[#1f1f28] hover:bg-[#2a2a38] text-[#a0a0b0] hover:text-white rounded-xl transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => window.location.href = '/'}
+                className="flex-1 px-4 py-3 bg-[#ea2127] hover:bg-[#d11920] text-white rounded-xl transition-colors"
+              >
+                Home
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+// Route role configurations (matching Sidebar.tsx)
+const ROUTE_ROLES = {
+  room: ['Super Admin', 'Software', 'Head of Software'],
+  guides: ['Super Admin', 'Software', 'Head of Software'],
+  utilities: ['Super Admin', 'Software', 'Head of Software'],
+  components: ['Super Admin', 'Software', 'Head of Software'],
+  map: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager', 'CNC'],
+  'admin/users': ['Super Admin'],
+  inventory: ['Super Admin', 'Head of Electronics', 'Electronics'],
+  // These are available to everyone (empty array)
+  dashboard: [],
+  overtimes: [],
+  tasks: [],
+  profile: [],
+};
 
 function App() {
   const { initialize, initialized, loading } = useAuthStore();
@@ -240,32 +330,36 @@ function App() {
               {/* Dashboard */}
               <Route index element={<HomePageWrapper />} />
 
-              {/* Room Flow */}
-              <Route path="room" element={<EscapeRoomTypeGridWrapper />} />
-              <Route path="room/:typeId" element={<CountryGridWrapper />} />
-              <Route path="room/:typeId/:country" element={<CityGridWrapper />} />
-              <Route path="room/:typeId/:country/:city" element={<RoomDetailsWrapper />} />
-              <Route path="room/:typeId/:country/:city/:roomName" element={<RoomInfoWrapper />} />
+              {/* Room Flow - Protected by role */}
+              <Route path="room" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><EscapeRoomTypeGridWrapper /></RouteGuard>} />
+              <Route path="room/:typeId" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><CountryGridWrapper /></RouteGuard>} />
+              <Route path="room/:typeId/:country" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><CityGridWrapper /></RouteGuard>} />
+              <Route path="room/:typeId/:country/:city" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><RoomDetailsWrapper /></RouteGuard>} />
+              <Route path="room/:typeId/:country/:city/:roomName" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><RoomInfoWrapper /></RouteGuard>} />
 
-              {/* Other Pages */}
+              {/* Other Pages - All protected by role */}
               <Route path="guides" element={
-                <div className="min-h-full bg-[#0f0f12] p-8">
-                  <h1 className="text-4xl font-bold text-white mb-4">Guides</h1>
-                  <p className="text-xl text-[#6b6b7a]">Documentation and guides will be available here.</p>
-                </div>
+                <RouteGuard allowedRoles={ROUTE_ROLES.guides}>
+                  <div className="min-h-full bg-[#0f0f12] p-8">
+                    <h1 className="text-4xl font-bold text-white mb-4">Guides</h1>
+                    <p className="text-xl text-[#6b6b7a]">Documentation and guides will be available here.</p>
+                  </div>
+                </RouteGuard>
               } />
-              <Route path="utilities" element={<UtilitiesPage />} />
-              <Route path="overtimes" element={<OvertimesPage />} />
-              <Route path="components" element={<ComponentsPage />} />
-              <Route path="map" element={<KonvaMap />} />
-              <Route path="admin/users" element={<UserManagement />} />
+              <Route path="utilities" element={<RouteGuard allowedRoles={ROUTE_ROLES.utilities}><UtilitiesPage /></RouteGuard>} />
+              <Route path="overtimes" element={<RouteGuard allowedRoles={ROUTE_ROLES.overtimes}><OvertimesPage /></RouteGuard>} />
+              <Route path="components" element={<RouteGuard allowedRoles={ROUTE_ROLES.components}><ComponentsPage /></RouteGuard>} />
+              <Route path="map" element={<RouteGuard allowedRoles={ROUTE_ROLES.map}><KonvaMap /></RouteGuard>} />
+              <Route path="admin/users" element={<RouteGuard allowedRoles={ROUTE_ROLES['admin/users']}><UserManagement /></RouteGuard>} />
               <Route path="admin/countries" element={
-                <CountryManagement onBack={() => window.history.back()} />
+                <RouteGuard allowedRoles={ROUTE_ROLES['admin/users']}>
+                  <CountryManagement onBack={() => window.history.back()} />
+                </RouteGuard>
               } />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="order-list" element={<OrderListPage />} />
-              <Route path="tasks" element={<TasksPage />} />
+              <Route path="profile" element={<RouteGuard allowedRoles={ROUTE_ROLES.profile}><ProfilePage /></RouteGuard>} />
+              <Route path="inventory" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory}><InventoryPage /></RouteGuard>} />
+              <Route path="order-list" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory}><OrderListPage /></RouteGuard>} />
+              <Route path="tasks" element={<RouteGuard allowedRoles={ROUTE_ROLES.tasks}><TasksPage /></RouteGuard>} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>

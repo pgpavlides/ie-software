@@ -103,9 +103,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
     {
       name: 'MAP',
       view: 'map',
-      iconPath: '/icons/Dashboard.svg',
+      iconPath: '/icons/LOCATION.svg',
       emoji: '🗺️',
-      roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head of Project Manager']
+      roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager', 'CNC']
     },
     {
       name: 'User Management',
