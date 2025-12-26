@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useViewAsStore } from '../store/viewAsStore';
+import supabase from '../lib/supabase';
 import {
   FiChevronsLeft,
   FiChevronsRight,
@@ -12,6 +13,17 @@ import {
   FiEye,
   FiX,
 } from "react-icons/fi";
+
+interface SectionPermission {
+  role_id: string;
+  section_key: string;
+  can_access: boolean;
+}
+
+interface RoleInfo {
+  id: string;
+  name: string;
+}
 
 interface SidebarProps {
   currentView: string;
@@ -25,6 +37,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
   const [open, setOpen] = useState(true);
+
+  // Section permissions state
+  const [sectionPermissions, setSectionPermissions] = useState<SectionPermission[]>([]);
+  const [userRoleIds, setUserRoleIds] = useState<string[]>([]);
+  const [, setRolesMap] = useState<Map<string, string>>(new Map()); // role_id -> role_name
 
   // Detect mobile screen size
   useEffect(() => {
@@ -56,6 +73,67 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       initializeViewAs();
     }
   }, [viewAsInitialized, canUseViewAs, initializeViewAs]);
+
+  // Fetch section permissions and user roles
+  const fetchSectionPermissions = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Fetch all section permissions
+      const { data: permissions, error: permError } = await supabase
+        .from('role_section_permissions')
+        .select('*');
+
+      if (permError) throw permError;
+      setSectionPermissions(permissions || []);
+
+      // Fetch all roles to create a map
+      const { data: roles, error: rolesError } = await supabase
+        .from('roles')
+        .select('id, name');
+
+      if (rolesError) throw rolesError;
+
+      const map = new Map<string, string>();
+      (roles || []).forEach((role: RoleInfo) => {
+        map.set(role.id, role.name);
+      });
+      setRolesMap(map);
+
+      // Fetch user's role IDs
+      const { data: userRoles, error: userRolesError } = await supabase
+        .from('user_roles')
+        .select('role_id')
+        .eq('user_id', user.id);
+
+      if (userRolesError) throw userRolesError;
+      setUserRoleIds((userRoles || []).map((ur: { role_id: string }) => ur.role_id));
+
+    } catch (error) {
+      console.error('Error fetching section permissions:', error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchSectionPermissions();
+  }, [fetchSectionPermissions]);
+
+  // Check if user has permission for a section based on database permissions
+  const hasDbPermission = useCallback((sectionKey: string): boolean => {
+    // Super Admin always has access
+    const effectiveRoles = getEffectiveRoles();
+    if (effectiveRoles.includes('Super Admin')) return true;
+
+    // Check if any of the user's roles have permission for this section
+    for (const roleId of userRoleIds) {
+      const permission = sectionPermissions.find(
+        p => p.role_id === roleId && p.section_key === sectionKey
+      );
+      if (permission?.can_access) return true;
+    }
+
+    return false;
+  }, [userRoleIds, sectionPermissions, getEffectiveRoles]);
 
   const allMenuItems = [
     {
@@ -96,7 +174,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
     {
       name: 'Components',
       view: 'components',
-      iconPath: '/icons/BOX.svg',
+      iconPath: '/icons/PUZZLE.svg',
       emoji: '🧩',
       roles: ['Super Admin', 'Software', 'Head of Software']
     },
@@ -117,16 +195,23 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
     {
       name: 'Inventory',
       view: 'inventory',
-      iconPath: '/icons/BOX.svg',
+      iconPath: '/icons/INVENTORY.svg',
       emoji: '📦',
       roles: ['Super Admin', 'Head of Electronics', 'Electronics']
     },
     {
       name: 'Tasks',
       view: 'tasks',
-      iconPath: '/icons/BOX.svg',
+      iconPath: '/icons/TASKS.svg',
       emoji: '📋',
       roles: [] // Available to everyone - global task system for all departments
+    },
+    {
+      name: 'Files',
+      view: 'files',
+      iconPath: '/icons/FILES.svg',
+      emoji: '📁',
+      roles: ['Super Admin', 'Head of Software', 'Head of Electronics', 'Head Architect', 'Head Project Manager']
     }
   ];
 
@@ -135,6 +220,17 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
   const hasEffectiveRole = (role: string) => effectiveMenuRoles.includes(role);
 
   const menuItems = allMenuItems.filter(item => {
+    // Super Admin always has access to everything
+    if (hasEffectiveRole('Super Admin')) {
+      return true;
+    }
+
+    // Check database-based permissions first
+    if (sectionPermissions.length > 0) {
+      return hasDbPermission(item.view);
+    }
+
+    // Fallback to static role-based filtering if permissions not loaded yet
     // Empty roles array means available to everyone
     if (!item.roles || item.roles.length === 0) {
       return true;

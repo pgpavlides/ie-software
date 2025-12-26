@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../lib/supabase';
 import { useViewAsStore } from '../store/viewAsStore';
+import { useAuthStore } from '../store/authStore';
 
 interface Category {
   id: string;
@@ -112,12 +113,64 @@ interface GlobalStats {
 export default function InventoryPage() {
   const navigate = useNavigate();
   const { getEffectiveRoles } = useViewAsStore();
+  const { user, hasRole, roles: actualRoles } = useAuthStore();
   const effectiveRoles = getEffectiveRoles();
 
-  // Permission checks
-  const canEdit = effectiveRoles.some(role =>
-    ['Super Admin', 'Admin', 'Head of Electronics'].includes(role)
-  );
+  // Database edit permission
+  const [hasDbEditPermission, setHasDbEditPermission] = useState<boolean>(false);
+
+  // Check database edit permission for inventory section
+  useEffect(() => {
+    const checkEditPermission = async () => {
+      // Super Admin always has edit access
+      if (hasRole('Super Admin')) {
+        setHasDbEditPermission(true);
+        return;
+      }
+
+      if (!user) {
+        setHasDbEditPermission(false);
+        return;
+      }
+
+      try {
+        // Get user's role IDs
+        const { data: userRoles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .eq('user_id', user.id);
+
+        if (rolesError) throw rolesError;
+
+        if (!userRoles || userRoles.length === 0) {
+          setHasDbEditPermission(false);
+          return;
+        }
+
+        const roleIds = userRoles.map((ur: { role_id: string }) => ur.role_id);
+
+        // Check if any of the user's roles have edit permission for inventory
+        const { data: permissions, error: permError } = await supabase
+          .from('role_section_permissions')
+          .select('can_edit')
+          .eq('section_key', 'inventory')
+          .in('role_id', roleIds)
+          .eq('can_edit', true);
+
+        if (permError) throw permError;
+
+        setHasDbEditPermission(permissions && permissions.length > 0);
+      } catch (error) {
+        console.error('Error checking edit permission:', error);
+        setHasDbEditPermission(false);
+      }
+    };
+
+    checkEditPermission();
+  }, [user, hasRole, actualRoles]);
+
+  // Permission checks - Super Admin always has edit, otherwise check database
+  const canEdit = hasRole('Super Admin') || hasDbEditPermission;
   const isElectronicsOnly = effectiveRoles.includes('Electronics') && !canEdit;
   const canMarkNeedsOrder = !isElectronicsOnly;
 

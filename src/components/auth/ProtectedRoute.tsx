@@ -1,18 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useViewAsStore } from '../../store/viewAsStore';
+import supabase from '../../lib/supabase';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireRole?: string[];
   requireSuperAdmin?: boolean;
+  requireSection?: string; // New: check database section permission
 }
 
-export default function ProtectedRoute({ children, requireRole, requireSuperAdmin = false }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requireRole, requireSuperAdmin = false, requireSection }: ProtectedRouteProps) {
   const { user, loading, initialized, initialize, roles: actualRoles } = useAuthStore();
   const { getEffectiveRoles, isViewingAs } = useViewAsStore();
   const location = useLocation();
+
+  const [sectionPermissionChecked, setSectionPermissionChecked] = useState(false);
+  const [hasSectionAccess, setHasSectionAccess] = useState(false);
 
   const effectiveRoles = getEffectiveRoles();
   const viewingAs = isViewingAs();
@@ -23,7 +28,67 @@ export default function ProtectedRoute({ children, requireRole, requireSuperAdmi
     }
   }, [initialized, initialize]);
 
-  if (loading || !initialized) {
+  // Check section permission from database
+  const checkSectionPermission = useCallback(async () => {
+    if (!requireSection || !user) {
+      setSectionPermissionChecked(true);
+      setHasSectionAccess(true);
+      return;
+    }
+
+    // Super Admin always has access
+    if (actualRoles.includes('Super Admin')) {
+      setSectionPermissionChecked(true);
+      setHasSectionAccess(true);
+      return;
+    }
+
+    try {
+      // Get user's role IDs
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('role_id')
+        .eq('user_id', user.id);
+
+      if (rolesError) throw rolesError;
+
+      if (!userRoles || userRoles.length === 0) {
+        setSectionPermissionChecked(true);
+        setHasSectionAccess(false);
+        return;
+      }
+
+      const roleIds = userRoles.map(ur => ur.role_id);
+
+      // Check if any role has access to this section
+      const { data: permissions, error: permError } = await supabase
+        .from('role_section_permissions')
+        .select('can_access')
+        .eq('section_key', requireSection)
+        .in('role_id', roleIds)
+        .eq('can_access', true);
+
+      if (permError) throw permError;
+
+      setHasSectionAccess(permissions && permissions.length > 0);
+    } catch (error) {
+      console.error('Error checking section permission:', error);
+      setHasSectionAccess(false);
+    } finally {
+      setSectionPermissionChecked(true);
+    }
+  }, [requireSection, user, actualRoles]);
+
+  useEffect(() => {
+    if (initialized && user && requireSection) {
+      checkSectionPermission();
+    } else if (!requireSection) {
+      setSectionPermissionChecked(true);
+      setHasSectionAccess(true);
+    }
+  }, [initialized, user, requireSection, checkSectionPermission]);
+
+  if (loading || !initialized || (requireSection && !sectionPermissionChecked)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0f0f12]">
         <div className="text-center">
@@ -45,6 +110,11 @@ export default function ProtectedRoute({ children, requireRole, requireSuperAdmi
   // If user is Super Admin and NOT using ViewAs mode, always allow access
   if (isSuperAdmin && !viewingAs) {
     return <>{children}</>;
+  }
+
+  // Check section permission from database
+  if (requireSection && !hasSectionAccess) {
+    return <AccessDenied requiredRole={`Access to ${requireSection}`} userRoles={effectiveRoles} isViewingAs={viewingAs} />;
   }
 
   // Check for Super Admin requirement

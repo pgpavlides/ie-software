@@ -21,10 +21,12 @@ import ProfilePage from './components/ProfilePage';
 import InventoryPage from './components/InventoryPage';
 import OrderListPage from './components/OrderListPage';
 import TasksPage from './components/TasksPage';
+import FileSystemPage from './components/FileSystemPage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
+import supabase from './lib/supabase';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files';
 
 // Router-aware components
 function AppContent() {
@@ -43,6 +45,7 @@ function AppContent() {
     if (location.pathname.startsWith('/inventory')) return 'inventory';
     if (location.pathname.startsWith('/tasks')) return 'tasks';
     if (location.pathname.startsWith('/profile')) return 'profile';
+    if (location.pathname.startsWith('/files')) return 'files';
     return 'dashboard';
   };
 
@@ -80,6 +83,9 @@ function AppContent() {
         break;
       case 'profile':
         navigate('/profile');
+        break;
+      case 'files':
+        navigate('/files');
         break;
     }
   };
@@ -190,16 +196,84 @@ function RoomInfoWrapper() {
   );
 }
 
-// Generic role-based route guard
-function RouteGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
-  const { hasRole, roles } = useAuthStore();
+// Generic role-based route guard with database permission check
+function RouteGuard({ children, allowedRoles, sectionKey }: { children: React.ReactNode; allowedRoles: string[]; sectionKey?: string }) {
+  const { hasRole, roles, user } = useAuthStore();
+  const [dbPermissionChecked, setDbPermissionChecked] = useState(false);
+  const [hasDbAccess, setHasDbAccess] = useState(false);
 
-  // Empty array means everyone has access
-  if (allowedRoles.length === 0) {
+  // Check database section permission
+  useEffect(() => {
+    const checkPermission = async () => {
+      // Super Admin always has access
+      if (hasRole('Super Admin')) {
+        setHasDbAccess(true);
+        setDbPermissionChecked(true);
+        return;
+      }
+
+      // If no section key, fall back to role-based check
+      if (!sectionKey || !user) {
+        setHasDbAccess(allowedRoles.length === 0 || allowedRoles.some(role => hasRole(role)));
+        setDbPermissionChecked(true);
+        return;
+      }
+
+      try {
+        // Get user's role IDs
+        const { data: userRoles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .eq('user_id', user.id);
+
+        if (rolesError) throw rolesError;
+
+        if (!userRoles || userRoles.length === 0) {
+          setHasDbAccess(false);
+          setDbPermissionChecked(true);
+          return;
+        }
+
+        const roleIds = userRoles.map((ur: { role_id: string }) => ur.role_id);
+
+        // Check if any role has access to this section
+        const { data: permissions, error: permError } = await supabase
+          .from('role_section_permissions')
+          .select('can_access')
+          .eq('section_key', sectionKey)
+          .in('role_id', roleIds)
+          .eq('can_access', true);
+
+        if (permError) throw permError;
+
+        setHasDbAccess(permissions && permissions.length > 0);
+      } catch (error) {
+        console.error('Error checking section permission:', error);
+        // Fall back to role-based check on error
+        setHasDbAccess(allowedRoles.length === 0 || allowedRoles.some(role => hasRole(role)));
+      } finally {
+        setDbPermissionChecked(true);
+      }
+    };
+
+    checkPermission();
+  }, [user, sectionKey, allowedRoles, hasRole]);
+
+  // Show loading while checking permissions
+  if (!dbPermissionChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f0f12]">
+        <div className="w-8 h-8 border-2 border-[#ea2127] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Empty array and no section key means everyone has access
+  if (allowedRoles.length === 0 && !sectionKey) {
     return <>{children}</>;
   }
 
-  const hasAccess = allowedRoles.some(role => hasRole(role));
+  const hasAccess = hasDbAccess;
 
   if (!hasAccess) {
     return (
@@ -273,6 +347,7 @@ const ROUTE_ROLES = {
   map: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager', 'CNC'],
   'admin/users': ['Super Admin'],
   inventory: ['Super Admin', 'Head of Electronics', 'Electronics'],
+  files: ['Super Admin', 'Head of Software', 'Head of Electronics', 'Head Architect', 'Head Project Manager'],
   // These are available to everyone (empty array)
   dashboard: [],
   overtimes: [],
@@ -332,36 +407,37 @@ function App() {
               {/* Dashboard */}
               <Route index element={<HomePageWrapper />} />
 
-              {/* Room Flow - Protected by role */}
-              <Route path="room" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><EscapeRoomTypeGridWrapper /></RouteGuard>} />
-              <Route path="room/:typeId" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><CountryGridWrapper /></RouteGuard>} />
-              <Route path="room/:typeId/:country" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><CityGridWrapper /></RouteGuard>} />
-              <Route path="room/:typeId/:country/:city" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><RoomDetailsWrapper /></RouteGuard>} />
-              <Route path="room/:typeId/:country/:city/:roomName" element={<RouteGuard allowedRoles={ROUTE_ROLES.room}><RoomInfoWrapper /></RouteGuard>} />
+              {/* Room Flow - Protected by database permission */}
+              <Route path="room" element={<RouteGuard allowedRoles={ROUTE_ROLES.room} sectionKey="room"><EscapeRoomTypeGridWrapper /></RouteGuard>} />
+              <Route path="room/:typeId" element={<RouteGuard allowedRoles={ROUTE_ROLES.room} sectionKey="room"><CountryGridWrapper /></RouteGuard>} />
+              <Route path="room/:typeId/:country" element={<RouteGuard allowedRoles={ROUTE_ROLES.room} sectionKey="room"><CityGridWrapper /></RouteGuard>} />
+              <Route path="room/:typeId/:country/:city" element={<RouteGuard allowedRoles={ROUTE_ROLES.room} sectionKey="room"><RoomDetailsWrapper /></RouteGuard>} />
+              <Route path="room/:typeId/:country/:city/:roomName" element={<RouteGuard allowedRoles={ROUTE_ROLES.room} sectionKey="room"><RoomInfoWrapper /></RouteGuard>} />
 
-              {/* Other Pages - All protected by role */}
+              {/* Other Pages - All protected by database permission */}
               <Route path="guides" element={
-                <RouteGuard allowedRoles={ROUTE_ROLES.guides}>
+                <RouteGuard allowedRoles={ROUTE_ROLES.guides} sectionKey="guides">
                   <div className="min-h-full bg-[#0f0f12] p-8">
                     <h1 className="text-4xl font-bold text-white mb-4">Guides</h1>
                     <p className="text-xl text-[#6b6b7a]">Documentation and guides will be available here.</p>
                   </div>
                 </RouteGuard>
               } />
-              <Route path="utilities" element={<RouteGuard allowedRoles={ROUTE_ROLES.utilities}><UtilitiesPage /></RouteGuard>} />
-              <Route path="overtimes" element={<RouteGuard allowedRoles={ROUTE_ROLES.overtimes}><OvertimesPage /></RouteGuard>} />
-              <Route path="components" element={<RouteGuard allowedRoles={ROUTE_ROLES.components}><ComponentsPage /></RouteGuard>} />
-              <Route path="map" element={<RouteGuard allowedRoles={ROUTE_ROLES.map}><KonvaMap /></RouteGuard>} />
-              <Route path="admin/users" element={<RouteGuard allowedRoles={ROUTE_ROLES['admin/users']}><UserManagement /></RouteGuard>} />
+              <Route path="utilities" element={<RouteGuard allowedRoles={ROUTE_ROLES.utilities} sectionKey="utilities"><UtilitiesPage /></RouteGuard>} />
+              <Route path="overtimes" element={<RouteGuard allowedRoles={ROUTE_ROLES.overtimes} sectionKey="overtimes"><OvertimesPage /></RouteGuard>} />
+              <Route path="components" element={<RouteGuard allowedRoles={ROUTE_ROLES.components} sectionKey="components"><ComponentsPage /></RouteGuard>} />
+              <Route path="map" element={<RouteGuard allowedRoles={ROUTE_ROLES.map} sectionKey="map"><KonvaMap /></RouteGuard>} />
+              <Route path="admin/users" element={<RouteGuard allowedRoles={ROUTE_ROLES['admin/users']} sectionKey="admin/users"><UserManagement /></RouteGuard>} />
               <Route path="admin/countries" element={
-                <RouteGuard allowedRoles={ROUTE_ROLES['admin/users']}>
+                <RouteGuard allowedRoles={ROUTE_ROLES['admin/users']} sectionKey="admin/users">
                   <CountryManagement onBack={() => window.history.back()} />
                 </RouteGuard>
               } />
               <Route path="profile" element={<RouteGuard allowedRoles={ROUTE_ROLES.profile}><ProfilePage /></RouteGuard>} />
-              <Route path="inventory" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory}><InventoryPage /></RouteGuard>} />
-              <Route path="order-list" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory}><OrderListPage /></RouteGuard>} />
-              <Route path="tasks" element={<RouteGuard allowedRoles={ROUTE_ROLES.tasks}><TasksPage /></RouteGuard>} />
+              <Route path="inventory" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory} sectionKey="inventory"><InventoryPage /></RouteGuard>} />
+              <Route path="order-list" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory} sectionKey="inventory"><OrderListPage /></RouteGuard>} />
+              <Route path="tasks" element={<RouteGuard allowedRoles={ROUTE_ROLES.tasks} sectionKey="tasks"><TasksPage /></RouteGuard>} />
+              <Route path="files" element={<RouteGuard allowedRoles={ROUTE_ROLES.files} sectionKey="files"><FileSystemPage /></RouteGuard>} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>

@@ -28,7 +28,14 @@
       "Bash(git push)",
       "Bash(git remote set-url:*)",
       "mcp__plugin_context7_context7__resolve-library-id",
-      "mcp__plugin_context7_context7__get-library-docs"
+      "mcp__plugin_context7_context7__get-library-docs",
+      "Bash(grep:*)",
+      "Bash(for icon in folder folders file file-code file-music file-analytics archive photo video camera book home briefcase building calendar clock star heart crown trophy gift diamond lock key shield eye mail message user users globe map-pin flag chart-pie cloud database code-circle layers apps puzzle bulb rocket paint tag bookmark clipboard device-gamepad-2 cards dice-5 square circle triangle hexagon box-multiple world brain atom flask tool)",
+      "Bash(do if [ -f \"$icon.svg\" ])",
+      "Bash(then echo \"OK: $icon.svg\")",
+      "Bash(else echo \"MISSING: $icon.svg\")",
+      "Bash(fi)",
+      "Bash(done)"
     ],
     "deny": []
   }

@@ -623,9 +623,54 @@ const LeafletMap: React.FC = () => {
   const [isInMoveMode, setIsInMoveMode] = useState(false);
   const [activePopup, setActivePopup] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(10);
+  const [hasDbEditPermission, setHasDbEditPermission] = useState<boolean | null>(null);
 
   const { hasRole, user } = useAuthStore();
-  const canEdit = hasRole('Super Admin') || hasRole('Boss') || hasRole('Admin') || hasRole('Architect') || hasRole('Project Manager');
+
+  // Check database for edit permission
+  useEffect(() => {
+    const checkEditPermission = async () => {
+      if (!user) return;
+
+      try {
+        // Get user's roles
+        const { data: userRoles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .eq('user_id', user.id);
+
+        if (rolesError) throw rolesError;
+
+        if (!userRoles || userRoles.length === 0) {
+          setHasDbEditPermission(false);
+          return;
+        }
+
+        const roleIds = userRoles.map(ur => ur.role_id);
+
+        // Check if any of the user's roles have edit permission for the map
+        const { data: permissions, error: permError } = await supabase
+          .from('role_section_permissions')
+          .select('can_edit')
+          .eq('section_key', 'map')
+          .in('role_id', roleIds)
+          .eq('can_edit', true);
+
+        if (permError) throw permError;
+
+        setHasDbEditPermission(permissions && permissions.length > 0);
+      } catch (error) {
+        console.error('Error checking edit permission:', error);
+        setHasDbEditPermission(false);
+      }
+    };
+
+    checkEditPermission();
+  }, [user]);
+
+  // Super Admin always has edit access, otherwise check database permission
+  // Also ensure edit is disabled while permission is still loading (null)
+  const canEdit = hasRole('Super Admin') || (hasDbEditPermission === true);
 
   const handleZoomChange = useCallback((zoom: number) => {
     setMapZoom(zoom);

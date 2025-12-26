@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useViewAsStore } from '../store/viewAsStore';
+import { useAuthStore } from '../store/authStore';
 import { getFullUserProfile } from '../services/supabaseQueries';
 import supabase from '../lib/supabase';
 
@@ -25,10 +26,15 @@ interface MessageOfTheDay {
 export default function HomePage({ onSelectCategory }: HomePageProps) {
   const navigate = useNavigate();
   const { getEffectiveRoles } = useViewAsStore();
+  const { user, roles: actualRoles } = useAuthStore();
   const effectiveRoles = getEffectiveRoles();
 
   // Helper to check if user has any of the specified roles
   const hasAnyRole = (roles: string[]) => effectiveRoles.some(role => roles.includes(role));
+
+  // Section permissions from database
+  const [sectionPermissions, setSectionPermissions] = useState<Record<string, boolean>>({});
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   // Check if user can edit message of the day
   const canEditMessage = hasAnyRole(['Super Admin', 'Boss']);
@@ -96,6 +102,63 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
     fetchMessage();
   }, []);
 
+  // Fetch section permissions from database
+  useEffect(() => {
+    async function fetchSectionPermissions() {
+      // Super Admin has access to everything
+      if (actualRoles.includes('Super Admin')) {
+        setPermissionsLoaded(true);
+        return;
+      }
+
+      if (!user) {
+        setPermissionsLoaded(true);
+        return;
+      }
+
+      try {
+        // Get user's role IDs
+        const { data: userRoles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .eq('user_id', user.id);
+
+        if (rolesError) throw rolesError;
+
+        if (!userRoles || userRoles.length === 0) {
+          setPermissionsLoaded(true);
+          return;
+        }
+
+        const roleIds = userRoles.map((ur: { role_id: string }) => ur.role_id);
+
+        // Get all section permissions for these roles
+        const { data: permissions, error: permError } = await supabase
+          .from('role_section_permissions')
+          .select('section_key, can_access')
+          .in('role_id', roleIds)
+          .eq('can_access', true);
+
+        if (permError) throw permError;
+
+        // Build permissions map - if any role has access, user has access
+        const permMap: Record<string, boolean> = {};
+        if (permissions) {
+          for (const perm of permissions) {
+            permMap[perm.section_key] = true;
+          }
+        }
+        setSectionPermissions(permMap);
+      } catch (error) {
+        console.error('Error fetching section permissions:', error);
+      } finally {
+        setPermissionsLoaded(true);
+      }
+    }
+
+    fetchSectionPermissions();
+  }, [user, actualRoles]);
+
   // Save message of the day
   const saveMessage = async () => {
     if (!editedMessage.trim() || !userProfile) return;
@@ -159,6 +222,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#ea2127] to-[#ff4f54]',
       roles: ['Super Admin', 'Software', 'Head of Software'],
+      sectionKey: 'rooms',
     },
     {
       id: 'guides',
@@ -173,6 +237,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#3b82f6] to-[#60a5fa]',
       roles: ['Super Admin', 'Software', 'Head of Software'],
+      sectionKey: 'guides',
     },
     {
       id: 'utilities',
@@ -185,6 +250,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#10b981] to-[#34d399]',
       roles: ['Super Admin', 'Software', 'Head of Software'],
+      sectionKey: 'utilities',
     },
     {
       id: 'overtimes',
@@ -198,6 +264,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#f59e0b] to-[#fbbf24]',
       roles: [], // Available to everyone
+      sectionKey: 'overtimes',
     },
     {
       id: 'components',
@@ -211,6 +278,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#8b5cf6] to-[#a78bfa]',
       roles: ['Super Admin', 'Software', 'Head of Software'],
+      sectionKey: 'components',
     },
     {
       id: 'map',
@@ -224,6 +292,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#06b6d4] to-[#22d3ee]',
       roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager'],
+      sectionKey: 'map',
     },
     {
       id: 'inventory',
@@ -236,6 +305,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#06b6d4] to-[#22d3ee]',
       roles: ['Super Admin', 'Head of Electronics', 'Electronics'],
+      sectionKey: 'inventory',
     },
     {
       id: 'tasks',
@@ -250,6 +320,20 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#f59e0b] to-[#fbbf24]',
       roles: [], // Available to everyone - global task system
+      sectionKey: 'tasks',
+    },
+    {
+      id: 'files',
+      title: 'Files',
+      description: 'Browse and manage project files',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+        </svg>
+      ),
+      accent: 'from-[#ec4899] to-[#f472b6]',
+      roles: ['Super Admin', 'Software', 'Head of Software'],
+      sectionKey: 'files',
     },
     {
       id: 'admin/users',
@@ -265,17 +349,35 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       ),
       accent: 'from-[#ef4444] to-[#f87171]',
       roles: ['Super Admin'],
+      sectionKey: null, // No database permission check - Super Admin only
     },
   ];
 
-  // Filter categories based on user's roles
-  // Empty roles array means available to everyone
-  const categories = allCategories.filter(cat =>
-    cat.roles.length === 0 || hasAnyRole(cat.roles)
-  );
+  // Filter categories based on user's roles AND database permissions
+  // Super Admin bypasses all permission checks
+  // For other users, check database permissions if sectionKey exists
+  const categories = allCategories.filter(cat => {
+    // Super Admin has access to everything
+    if (actualRoles.includes('Super Admin')) {
+      return true;
+    }
+
+    // If section has database-controlled permissions, check them
+    if (cat.sectionKey) {
+      // If permissions aren't loaded yet, hide the section temporarily
+      if (!permissionsLoaded) {
+        return false;
+      }
+      // Check database permission
+      return sectionPermissions[cat.sectionKey] === true;
+    }
+
+    // Fall back to role-based check for sections without database permissions
+    return cat.roles.length === 0 || hasAnyRole(cat.roles);
+  });
 
   // Check if user has no available categories
-  const hasNoCategories = categories.length === 0;
+  const hasNoCategories = categories.length === 0 && permissionsLoaded;
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
