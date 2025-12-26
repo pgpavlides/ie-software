@@ -596,7 +596,7 @@ const KonvaMap: React.FC = () => {
   };
 
   // Handle stage drag for panning (optimized - only update state on drag end)
-  const handleStageDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
+  const handleStageDragMove = () => {
     // Let Konva handle the visual update, don't update React state on every move
     // This prevents lag by reducing re-renders
   };
