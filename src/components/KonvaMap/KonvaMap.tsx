@@ -500,7 +500,7 @@ const KonvaMap: React.FC = () => {
 
     let lastDist = 0;
     let isPinching = false;
-    let isDragging = false;
+    let isPanning = false;
     let lastTouch = { x: 0, y: 0 };
 
     const getDistance = (touches: TouchList) => {
@@ -518,28 +518,24 @@ const KonvaMap: React.FC = () => {
       if (e.touches.length === 2) {
         // Two-finger pinch
         e.preventDefault();
-        e.stopPropagation();
         isPinching = true;
-        isDragging = false;
+        isPanning = false;
         lastDist = getDistance(e.touches);
-        stage.stopDrag();
       } else if (e.touches.length === 1) {
-        // Single-finger - check if touching a box or empty space
+        // Single-finger - check if on empty space for panning
         const touch = e.touches[0];
         const rect = container.getBoundingClientRect();
         const touchX = touch.clientX - rect.left;
         const touchY = touch.clientY - rect.top;
 
-        // Use Konva's hit detection to check if touch is on a shape
+        // Check what's under the touch point
         const shape = stage.getIntersection({ x: touchX, y: touchY });
 
-        // Only start panning if touching empty space (no shape or just the background image)
+        // Only pan if touching empty space or background
         if (!shape || shape.getClassName() === 'Image') {
-          isDragging = true;
-          isPinching = false;
+          isPanning = true;
           lastTouch = { x: touch.clientX, y: touch.clientY };
         }
-        // If touching a box, let Konva handle it (don't set isDragging)
       }
     };
 
@@ -547,7 +543,6 @@ const KonvaMap: React.FC = () => {
       if (e.touches.length === 2 && isPinching) {
         // Pinch-to-zoom
         e.preventDefault();
-        e.stopPropagation();
 
         const newDist = getDistance(e.touches);
         const center = getCenter(e.touches);
@@ -578,8 +573,10 @@ const KonvaMap: React.FC = () => {
         stage.batchDraw();
 
         lastDist = newDist;
-      } else if (e.touches.length === 1 && isDragging && !isPinching) {
-        // Single-finger pan
+      } else if (e.touches.length === 1 && isPanning && !isPinching) {
+        // Single-finger pan on empty space
+        e.preventDefault();
+
         const touch = e.touches[0];
         const dx = touch.clientX - lastTouch.x;
         const dy = touch.clientY - lastTouch.y;
@@ -601,7 +598,7 @@ const KonvaMap: React.FC = () => {
         isPinching = false;
       }
       if (e.touches.length === 0) {
-        isDragging = false;
+        isPanning = false;
         // Sync React state
         setZoomLevel(stage.scaleX());
         setStagePosition(stage.position());
@@ -617,34 +614,57 @@ const KonvaMap: React.FC = () => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isMobile, stagePosition, zoomLevel]);
+  }, [isMobile, loading, stageSize.width]);
 
-  // Handle stage drag start - only allow if clicking on empty space
-  const handleStageDragStart = (e: Konva.KonvaEventObject<DragEvent>) => {
-    const stage = e.target.getStage();
+  // Mouse panning state
+  const isPanningRef = useRef(false);
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
+
+  // Handle mouse down for panning (only on empty space)
+  const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = stageRef.current;
     if (!stage) return;
 
-    // Get the shape under the pointer
-    const pos = stage.getPointerPosition();
-    if (!pos) return;
+    // Only start panning if clicking on stage/background, not on boxes
+    const clickedOnEmpty = e.target === stage || e.target.getClassName() === 'Image';
 
-    const shape = stage.getIntersection(pos);
-
-    // Only allow stage drag if clicking on empty space or background image
-    // Cancel drag if clicking on a box (Rect or Group)
-    if (shape && shape.getClassName() !== 'Image' && shape.getClassName() !== 'Stage') {
-      stage.stopDrag();
+    if (clickedOnEmpty) {
+      isPanningRef.current = true;
+      lastMousePosRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      stage.container().style.cursor = 'grabbing';
     }
   };
 
-  // Handle stage drag for panning (only for non-touch/mouse drag)
-  const handleStageDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    if (e.target === e.target.getStage()) {
-      // Only sync state when drag ends
-      setStagePosition({
-        x: e.target.x(),
-        y: e.target.y(),
-      });
+  // Handle mouse move for panning
+  const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!isPanningRef.current) return;
+
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const dx = e.evt.clientX - lastMousePosRef.current.x;
+    const dy = e.evt.clientY - lastMousePosRef.current.y;
+
+    const newPos = {
+      x: stage.x() + dx,
+      y: stage.y() + dy,
+    };
+
+    stage.position(newPos);
+    stage.batchDraw();
+
+    lastMousePosRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+  };
+
+  // Handle mouse up to end panning
+  const handleMouseUp = () => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      const stage = stageRef.current;
+      if (stage) {
+        stage.container().style.cursor = 'default';
+        setStagePosition(stage.position());
+      }
     }
   };
 
@@ -689,13 +709,14 @@ const KonvaMap: React.FC = () => {
             onClick={handleStageClick}
             onTap={handleStageClick}
             onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
             scaleX={zoomLevel}
             scaleY={zoomLevel}
             x={stagePosition.x}
             y={stagePosition.y}
-            draggable={!isMobile}
-            onDragStart={handleStageDragStart}
-            onDragEnd={handleStageDragEnd}
           >
             {/* Background layer - optimized for performance */}
             <Layer listening={false} perfectDrawEnabled={false}>
