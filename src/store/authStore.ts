@@ -161,6 +161,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         options: {
           data: {
             full_name: fullName,
+            display_name: fullName, // Store in both fields for consistency
           },
         },
       });

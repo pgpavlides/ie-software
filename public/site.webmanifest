@@ -1,6 +1,9 @@
 {
   "name": "IE Hub",
   "short_name": "IE Hub",
+  "description": "Intelligent Entertainment Command Center",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -13,9 +16,23 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "theme_color": "#272727",
-  "background_color": "#1e1e1e",
-  "display": "standalone"
+  "theme_color": "#0f0f12",
+  "background_color": "#0f0f12",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait-primary"
 }

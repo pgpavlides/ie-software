@@ -602,7 +602,10 @@ export async function updateUserPassword(_currentPassword: string, newPassword: 
 // Update user metadata (display name, etc.)
 export async function updateUserProfile(displayName: string, avatarUrl?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const updateData: { display_name: string; avatar_url?: string } = { display_name: displayName };
+    const updateData: { display_name: string; full_name: string; avatar_url?: string } = {
+      display_name: displayName,
+      full_name: displayName // Store in both fields for consistency
+    };
     if (avatarUrl !== undefined) {
       updateData.avatar_url = avatarUrl;
     }

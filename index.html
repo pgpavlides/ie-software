@@ -17,8 +17,40 @@
     />
     <meta name="apple-mobile-web-app-title" content="IE Hub" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0f0f12" />
+    <meta name="msapplication-navbutton-color" content="#0f0f12" />
+    <meta name="msapplication-TileColor" content="#0f0f12" />
+
+    <!-- Prevent phone number detection -->
+    <meta name="format-detection" content="telephone=no" />
+
     <title>IE Software</title>
+
+    <style>
+      /* Ensure full height and hide overflow for standalone mode */
+      html, body {
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Hide scrollbar but allow scrolling */
+      body::-webkit-scrollbar {
+        display: none;
+      }
+
+      #root {
+        height: 100%;
+        overflow: hidden;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

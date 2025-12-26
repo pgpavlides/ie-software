@@ -228,16 +228,13 @@ export default function InventoryPage() {
         return;
       }
 
-      let reporterName = 'Unknown';
-      const { data: userData } = await supabase
-        .from('users')
-        .select('display_name, username, email')
-        .eq('id', user.id)
-        .single();
-
-      if (userData) {
-        reporterName = userData.display_name || userData.username || userData.email?.split('@')[0] || 'Unknown';
-      }
+      // Get reporter name from user metadata (no separate users table needed)
+      const metadata = user.user_metadata || {};
+      const reporterName = metadata.display_name ||
+                          metadata.full_name ||
+                          metadata.name ||
+                          (user.email ? user.email.split('@')[0] : null) ||
+                          'Unknown User';
 
       await supabase.from('inventory_notifications').insert({
         item_id: item.id,
