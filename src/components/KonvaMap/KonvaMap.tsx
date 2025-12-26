@@ -575,11 +575,11 @@ const KonvaMap: React.FC = () => {
 
         {/* Zoom Controls */}
         {!showListView && (
-          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
-            <div className="flex flex-col bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 items-center">
+            <div className="flex flex-col bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl shadow-lg overflow-hidden w-14">
               <button
                 onClick={handleZoomIn}
-                className="p-3 text-white hover:bg-[#2a2a35] transition-colors border-b border-[#2a2a35]"
+                className="w-full p-3 text-white hover:bg-[#2a2a35] transition-colors border-b border-[#2a2a35] flex items-center justify-center"
                 title="Zoom in"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -588,7 +588,7 @@ const KonvaMap: React.FC = () => {
               </button>
               <button
                 onClick={handleZoomOut}
-                className="p-3 text-white hover:bg-[#2a2a35] transition-colors border-b border-[#2a2a35]"
+                className="w-full p-3 text-white hover:bg-[#2a2a35] transition-colors border-b border-[#2a2a35] flex items-center justify-center"
                 title="Zoom out"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -597,7 +597,7 @@ const KonvaMap: React.FC = () => {
               </button>
               <button
                 onClick={handleResetZoom}
-                className="p-3 text-white hover:bg-[#2a2a35] transition-colors"
+                className="w-full p-3 text-white hover:bg-[#2a2a35] transition-colors flex items-center justify-center"
                 title="Reset zoom"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
