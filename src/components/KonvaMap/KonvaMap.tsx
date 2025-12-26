@@ -524,13 +524,22 @@ const KonvaMap: React.FC = () => {
         lastDist = getDistance(e.touches);
         stage.stopDrag();
       } else if (e.touches.length === 1) {
-        // Single-finger pan - only start if not on a box
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'CANVAS') {
+        // Single-finger - check if touching a box or empty space
+        const touch = e.touches[0];
+        const rect = container.getBoundingClientRect();
+        const touchX = touch.clientX - rect.left;
+        const touchY = touch.clientY - rect.top;
+
+        // Use Konva's hit detection to check if touch is on a shape
+        const shape = stage.getIntersection({ x: touchX, y: touchY });
+
+        // Only start panning if touching empty space (no shape or just the background image)
+        if (!shape || shape.getClassName() === 'Image') {
           isDragging = true;
           isPinching = false;
-          lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          lastTouch = { x: touch.clientX, y: touch.clientY };
         }
+        // If touching a box, let Konva handle it (don't set isDragging)
       }
     };
 
@@ -610,6 +619,24 @@ const KonvaMap: React.FC = () => {
     };
   }, [isMobile, stagePosition, zoomLevel]);
 
+  // Handle stage drag start - only allow if clicking on empty space
+  const handleStageDragStart = (e: Konva.KonvaEventObject<DragEvent>) => {
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    // Get the shape under the pointer
+    const pos = stage.getPointerPosition();
+    if (!pos) return;
+
+    const shape = stage.getIntersection(pos);
+
+    // Only allow stage drag if clicking on empty space or background image
+    // Cancel drag if clicking on a box (Rect or Group)
+    if (shape && shape.getClassName() !== 'Image' && shape.getClassName() !== 'Stage') {
+      stage.stopDrag();
+    }
+  };
+
   // Handle stage drag for panning (only for non-touch/mouse drag)
   const handleStageDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     if (e.target === e.target.getStage()) {
@@ -667,6 +694,7 @@ const KonvaMap: React.FC = () => {
             x={stagePosition.x}
             y={stagePosition.y}
             draggable={!isMobile}
+            onDragStart={handleStageDragStart}
             onDragEnd={handleStageDragEnd}
           >
             {/* Background layer - optimized for performance */}
@@ -695,7 +723,10 @@ const KonvaMap: React.FC = () => {
                   isAnimating={animatingBoxId === box.id}
                   onSelect={() => {
                     setSelectedBoxId(box.id);
-                    setViewingBox(box); // Also show info panel when selecting in edit mode
+                    // On mobile in edit mode, don't open side panel (just select for move/resize)
+                    if (!isMobile || selectedTool !== 'edit') {
+                      setViewingBox(box);
+                    }
                     if (canEdit && selectedTool === 'edit') {
                       // Double-click detection
                       const now = Date.now();
