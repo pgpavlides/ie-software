@@ -9,7 +9,7 @@ import RoomInfo from './components/RoomInfo';
 import UtilitiesPage from './components/UtilitiesPage';
 import OvertimesPage from './components/OvertimesPage';
 import ComponentsPage from './components/ComponentsPage';
-import LeafletMap from './components/LeafletMap';
+import { KonvaMap } from './components/KonvaMap';
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/auth/Login';
@@ -257,7 +257,7 @@ function App() {
               <Route path="utilities" element={<UtilitiesPage />} />
               <Route path="overtimes" element={<OvertimesPage />} />
               <Route path="components" element={<ComponentsPage />} />
-              <Route path="map" element={<LeafletMap />} />
+              <Route path="map" element={<KonvaMap />} />
               <Route path="admin/users" element={<UserManagement />} />
               <Route path="admin/countries" element={
                 <CountryManagement onBack={() => window.history.back()} />

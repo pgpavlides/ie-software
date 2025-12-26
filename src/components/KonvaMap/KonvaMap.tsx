@@ -1,0 +1,469 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Stage, Layer, Image, Transformer } from 'react-konva';
+import useImage from 'use-image';
+import Konva from 'konva';
+import supabase from '../../lib/supabase';
+import { useAuthStore } from '../../store/authStore';
+import MapBox, { type MapBoxData } from './MapBox';
+import BoxModal from './BoxModal';
+import MapToolbar from './MapToolbar';
+import ListView from './ListView';
+
+const KonvaMap: React.FC = () => {
+  // State
+  const [mapBoxes, setMapBoxes] = useState<MapBoxData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
+  const [selectedTool, setSelectedTool] = useState<'select' | 'edit'>('select');
+  const [showListView, setShowListView] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBox, setEditingBox] = useState<MapBoxData | null>(null);
+  const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Zoom and pan state
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
+
+  // Refs
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<Konva.Stage>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+
+  // Auth
+  const { hasRole, user } = useAuthStore();
+  const canEdit = hasRole('Super Admin') || hasRole('Boss') ||
+                  hasRole('Admin') || hasRole('Architect') ||
+                  hasRole('Project Manager');
+
+  // Load background image
+  const [backgroundImage] = useImage('/company_map.png');
+  const imageWidth = backgroundImage?.width || 1920;
+  const imageHeight = backgroundImage?.height || 1080;
+
+  // Calculate scale to fit image in container while maintaining aspect ratio
+  const scale = Math.min(
+    stageSize.width / imageWidth,
+    stageSize.height / imageHeight
+  );
+  const scaledWidth = imageWidth * scale;
+  const scaledHeight = imageHeight * scale;
+  const offsetX = (stageSize.width - scaledWidth) / 2;
+  const offsetY = (stageSize.height - scaledHeight) / 2;
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current) {
+        setStageSize({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight,
+        });
+      }
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Fetch boxes from Supabase
+  const fetchBoxes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('map_boxes')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setMapBoxes(data || []);
+    } catch (error) {
+      console.error('Error fetching boxes:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBoxes();
+  }, [fetchBoxes]);
+
+  // Update transformer when selection changes
+  useEffect(() => {
+    if (transformerRef.current && stageRef.current) {
+      if (selectedBoxId && selectedTool === 'edit' && canEdit) {
+        const selectedNode = stageRef.current.findOne(`#${selectedBoxId}`);
+        if (selectedNode) {
+          transformerRef.current.nodes([selectedNode]);
+          transformerRef.current.getLayer()?.batchDraw();
+        }
+      } else {
+        transformerRef.current.nodes([]);
+        transformerRef.current.getLayer()?.batchDraw();
+      }
+    }
+  }, [selectedBoxId, selectedTool, canEdit]);
+
+  // Handle stage click (deselect)
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const clickedOnEmpty = e.target === e.target.getStage() ||
+                          e.target.getClassName() === 'Image';
+    if (clickedOnEmpty) {
+      setSelectedBoxId(null);
+    }
+  };
+
+  // Handle box change (drag/resize)
+  const handleBoxChange = async (boxId: string, attrs: Partial<MapBoxData>) => {
+    try {
+      const { error } = await supabase
+        .from('map_boxes')
+        .update(attrs)
+        .eq('id', boxId);
+
+      if (error) throw error;
+
+      setMapBoxes(prev =>
+        prev.map(box => box.id === boxId ? { ...box, ...attrs } : box)
+      );
+    } catch (error) {
+      console.error('Error updating box:', error);
+    }
+  };
+
+  // Handle save (create/update)
+  const handleSaveBox = async (data: Omit<MapBoxData, 'id' | 'created_by' | 'is_active'>) => {
+    try {
+      if (editingBox) {
+        // Update existing
+        const { error } = await supabase
+          .from('map_boxes')
+          .update(data)
+          .eq('id', editingBox.id);
+
+        if (error) throw error;
+      } else {
+        // Create new
+        const { error } = await supabase
+          .from('map_boxes')
+          .insert([{
+            ...data,
+            is_active: true,
+            created_by: user?.id,
+          }]);
+
+        if (error) throw error;
+      }
+
+      await fetchBoxes();
+      setEditingBox(null);
+    } catch (error) {
+      console.error('Error saving box:', error);
+    }
+  };
+
+  // Handle delete
+  const handleDeleteBox = async (box: MapBoxData) => {
+    try {
+      const { error } = await supabase
+        .from('map_boxes')
+        .update({ is_active: false })
+        .eq('id', box.id);
+
+      if (error) throw error;
+
+      setMapBoxes(prev => prev.filter(b => b.id !== box.id));
+      setSelectedBoxId(null);
+      setEditingBox(null);
+    } catch (error) {
+      console.error('Error deleting box:', error);
+    }
+  };
+
+  // Open modal to add new box
+  const handleAddBox = () => {
+    setEditingBox(null);
+    setIsModalOpen(true);
+  };
+
+  // Open modal to edit box
+  const handleEditBox = (box: MapBoxData) => {
+    setEditingBox(box);
+    setIsModalOpen(true);
+  };
+
+  // Double-click to edit
+  const handleBoxDoubleClick = (boxId: string) => {
+    const box = mapBoxes.find(b => b.id === boxId);
+    if (box && canEdit && selectedTool === 'edit') {
+      handleEditBox(box);
+    }
+  };
+
+  // Zoom handlers
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev * 1.2, 5));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev / 1.2, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+    setStagePosition({ x: 0, y: 0 });
+  };
+
+  // Mouse wheel zoom
+  const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault();
+
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const oldScale = zoomLevel;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    const mousePointTo = {
+      x: (pointer.x - stagePosition.x) / oldScale,
+      y: (pointer.y - stagePosition.y) / oldScale,
+    };
+
+    const direction = e.evt.deltaY > 0 ? -1 : 1;
+    const newScale = direction > 0 ? oldScale * 1.1 : oldScale / 1.1;
+    const clampedScale = Math.max(0.5, Math.min(5, newScale));
+
+    const newPos = {
+      x: pointer.x - mousePointTo.x * clampedScale,
+      y: pointer.y - mousePointTo.y * clampedScale,
+    };
+
+    setZoomLevel(clampedScale);
+    setStagePosition(newPos);
+  };
+
+  // Handle stage drag for panning
+  const handleStageDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
+    // Only update if dragging the stage itself
+    if (e.target === e.target.getStage()) {
+      setStagePosition({
+        x: e.target.x(),
+        y: e.target.y(),
+      });
+    }
+  };
+
+  const handleStageDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    if (e.target === e.target.getStage()) {
+      setStagePosition({
+        x: e.target.x(),
+        y: e.target.y(),
+      });
+    }
+  };
+
+  return (
+    <div className="h-full w-full relative flex flex-col bg-[#0f0f12]">
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-[#1f1f28]">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-8 bg-[#ea2127] rounded-full" />
+          <div>
+            <h1 className="text-xl font-bold text-white">Map</h1>
+            <p className="text-sm text-[#6b6b7a]">Manage locations and areas</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div ref={containerRef} className="flex-1 relative overflow-hidden">
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 border-2 border-[#ea2127] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-[#6b6b7a]">Loading map...</p>
+            </div>
+          </div>
+        ) : showListView ? (
+          <ListView
+            boxes={mapBoxes}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onEditBox={handleEditBox}
+            onDeleteBox={handleDeleteBox}
+            canEdit={canEdit}
+          />
+        ) : (
+          <Stage
+            ref={stageRef}
+            width={stageSize.width}
+            height={stageSize.height}
+            onClick={handleStageClick}
+            onTap={handleStageClick}
+            onWheel={handleWheel}
+            scaleX={zoomLevel}
+            scaleY={zoomLevel}
+            x={stagePosition.x}
+            y={stagePosition.y}
+            draggable={selectedTool === 'select'}
+            onDragMove={handleStageDragMove}
+            onDragEnd={handleStageDragEnd}
+          >
+            {/* Background layer */}
+            <Layer>
+              {backgroundImage && (
+                <Image
+                  image={backgroundImage}
+                  x={offsetX}
+                  y={offsetY}
+                  width={scaledWidth}
+                  height={scaledHeight}
+                  listening={false}
+                />
+              )}
+            </Layer>
+
+            {/* Boxes layer */}
+            <Layer x={offsetX} y={offsetY}>
+              {mapBoxes.map((box) => (
+                <MapBox
+                  key={box.id}
+                  box={box}
+                  isSelected={selectedBoxId === box.id}
+                  onSelect={() => {
+                    setSelectedBoxId(box.id);
+                    if (canEdit && selectedTool === 'edit') {
+                      // Double-click detection
+                      const now = Date.now();
+                      const lastClick = (box as any)._lastClick || 0;
+                      if (now - lastClick < 300) {
+                        handleBoxDoubleClick(box.id);
+                      }
+                      (box as any)._lastClick = now;
+                    }
+                  }}
+                  onChange={(attrs) => handleBoxChange(box.id, attrs)}
+                  canEdit={canEdit}
+                  selectedTool={selectedTool}
+                  imageWidth={scaledWidth}
+                  imageHeight={scaledHeight}
+                />
+              ))}
+
+              {/* Transformer for resize handles */}
+              <Transformer
+                ref={transformerRef}
+                boundBoxFunc={(oldBox, newBox) => {
+                  // Limit resize
+                  const minWidth = 60;
+                  const minHeight = 40;
+                  if (newBox.width < minWidth || newBox.height < minHeight) {
+                    return oldBox;
+                  }
+                  return newBox;
+                }}
+                enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+                anchorSize={isMobile ? 20 : 12}
+                anchorCornerRadius={isMobile ? 10 : 6}
+                anchorFill="#ea2127"
+                anchorStroke="#ffffff"
+                anchorStrokeWidth={2}
+                borderStroke="#ea2127"
+                borderStrokeWidth={2}
+                borderDash={[4, 4]}
+                rotateEnabled={false}
+                keepRatio={false}
+              />
+            </Layer>
+          </Stage>
+        )}
+
+        {/* Zoom Controls */}
+        {!showListView && (
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
+            <div className="flex flex-col bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl shadow-lg overflow-hidden">
+              <button
+                onClick={handleZoomIn}
+                className="p-3 text-white hover:bg-[#2a2a35] transition-colors border-b border-[#2a2a35]"
+                title="Zoom in"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </button>
+              <button
+                onClick={handleZoomOut}
+                className="p-3 text-white hover:bg-[#2a2a35] transition-colors border-b border-[#2a2a35]"
+                title="Zoom out"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+              <button
+                onClick={handleResetZoom}
+                className="p-3 text-white hover:bg-[#2a2a35] transition-colors"
+                title="Reset zoom"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              </button>
+            </div>
+            <div className="bg-[#141418]/95 backdrop-blur-xl border border-[#2a2a35] rounded-xl px-3 py-2 text-center">
+              <span className="text-xs text-[#8b8b9a]">{Math.round(zoomLevel * 100)}%</span>
+            </div>
+          </div>
+        )}
+
+        {/* Toolbar */}
+        {!showListView && (
+          <MapToolbar
+            canEdit={canEdit}
+            selectedTool={selectedTool}
+            onToolChange={setSelectedTool}
+            onAddBox={handleAddBox}
+            boxCount={mapBoxes.length}
+            showListView={showListView}
+            onToggleView={() => setShowListView(!showListView)}
+          />
+        )}
+
+        {/* List view toggle for list view */}
+        {showListView && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <MapToolbar
+              canEdit={canEdit}
+              selectedTool={selectedTool}
+              onToolChange={setSelectedTool}
+              onAddBox={handleAddBox}
+              boxCount={mapBoxes.length}
+              showListView={showListView}
+              onToggleView={() => setShowListView(!showListView)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      <BoxModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingBox(null);
+        }}
+        onSave={handleSaveBox}
+        onDelete={editingBox ? () => handleDeleteBox(editingBox) : undefined}
+        editingBox={editingBox}
+        defaultPosition={{ x: 0.1, y: 0.1 }}
+      />
+    </div>
+  );
+};
+
+export default KonvaMap;
