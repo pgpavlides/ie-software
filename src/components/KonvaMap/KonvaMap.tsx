@@ -281,6 +281,28 @@ const KonvaMap: React.FC = () => {
     }
   };
 
+  // Save box directly from list view
+  const handleSaveBoxFromList = async (box: MapBoxData) => {
+    try {
+      const { error } = await supabase
+        .from('map_boxes')
+        .update({
+          name: box.name,
+          description: box.description,
+          color: box.color,
+          links: box.links,
+        })
+        .eq('id', box.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setMapBoxes(prev => prev.map(b => b.id === box.id ? box : b));
+    } catch (error) {
+      console.error('Error saving box:', error);
+    }
+  };
+
   // Enter placement mode for adding new box
   const handleAddBox = () => {
     setEditingBox(null);
@@ -445,6 +467,7 @@ const KonvaMap: React.FC = () => {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onEditBox={handleEditBox}
+            onSaveBox={handleSaveBoxFromList}
             onDeleteBox={handleDeleteBox}
             canEdit={canEdit}
           />
@@ -611,7 +634,15 @@ const KonvaMap: React.FC = () => {
           onToolChange={setSelectedTool}
           onAddBox={handleAddBox}
           showListView={showListView}
-          onToggleView={() => setShowListView(!showListView)}
+          onToggleView={() => {
+            const newShowListView = !showListView;
+            if (newShowListView) {
+              // Close side panel when switching to list view
+              setViewingBox(null);
+              setEditingBox(null);
+            }
+            setShowListView(newShowListView);
+          }}
           hasUnsavedChanges={hasUnsavedChanges}
           onSave={handleSaveChanges}
           onCancel={handleCancelChanges}
