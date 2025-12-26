@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FaTimes, FaPencilAlt, FaTrash } from 'react-icons/fa';
+import { FaTimes, FaPencilAlt, FaTrash, FaQrcode } from 'react-icons/fa';
 import type { MapBoxData, BoxLink } from './MapBox';
 import ConfirmDialog from './ConfirmDialog';
 import LinkManager, { detectLinkType } from './LinkManager';
+import QRCodeModal from './QRCodeModal';
 
 const presetColors = [
   '#ea2127', '#f59e0b', '#10b981', '#3b82f6',
@@ -34,6 +35,7 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
   canEdit,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editLinks, setEditLinks] = useState<BoxLink[]>([]);
@@ -277,8 +279,19 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
         </div>
 
         {/* Footer Actions */}
-        {canEdit && (
-          <div className="p-4 border-t border-[#2a2a35] mt-auto">
+        <div className="p-4 border-t border-[#2a2a35] mt-auto">
+          {/* QR Code Button - always visible */}
+          {!isEditing && (
+            <button
+              onClick={() => setShowQRCode(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1a1a1f] hover:bg-[#252530] text-[#8b8b9a] hover:text-white rounded-xl font-medium transition-all border border-[#2a2a35] mb-2"
+            >
+              <FaQrcode className="w-4 h-4" />
+              <span>Generate QR Code</span>
+            </button>
+          )}
+
+          {canEdit && (
             <div className="flex gap-2">
               {!isEditing && (
                 <button
@@ -300,18 +313,18 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
               )}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className={`${isEditing ? '' : ''} px-4 py-3 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-xl font-medium transition-all border border-[#ea2127]/30`}
+                className="px-4 py-3 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-xl font-medium transition-all border border-[#ea2127]/30"
               >
                 <FaTrash className="w-4 h-4" />
               </button>
             </div>
-            {isEditing && (
-              <p className="mt-3 text-xs text-[#6b6b7a] text-center">
-                Use the Save button in the toolbar to save changes
-              </p>
-            )}
-          </div>
-        )}
+          )}
+          {isEditing && (
+            <p className="mt-3 text-xs text-[#6b6b7a] text-center">
+              Use the Save button in the toolbar to save changes
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
@@ -327,6 +340,13 @@ const BoxInfoPanel: React.FC<BoxInfoPanelProps> = ({
           onDelete?.(box);
         }}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      {/* QR Code Modal */}
+      <QRCodeModal
+        isOpen={showQRCode}
+        onClose={() => setShowQRCode(false)}
+        box={box}
       />
     </>
   );

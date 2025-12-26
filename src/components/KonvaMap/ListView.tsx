@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { FaPencilAlt, FaTrash, FaSearch, FaTimes, FaLink, FaBoxes, FaExternalLinkAlt, FaSave, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaPencilAlt, FaTrash, FaSearch, FaTimes, FaLink, FaBoxes, FaExternalLinkAlt, FaSave, FaMapMarkerAlt, FaQrcode } from 'react-icons/fa';
 import type { MapBoxData, BoxLink } from './MapBox';
 import ConfirmDialog from './ConfirmDialog';
 import LinkManager, { detectLinkType } from './LinkManager';
+import QRCodeModal from './QRCodeModal';
 
 // Link type detection and logos
 type LinkType = 'trello' | 'clickup' | 'google_drive' | 'generic';
@@ -52,6 +53,7 @@ const ListView: React.FC<ListViewProps> = ({
   const [boxToDelete, setBoxToDelete] = useState<MapBoxData | null>(null);
   const [selectedBox, setSelectedBox] = useState<MapBoxData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
 
   // Edit form state
   const [editName, setEditName] = useState('');
@@ -507,8 +509,17 @@ const ListView: React.FC<ListViewProps> = ({
               </div>
 
               {/* Detail Footer Actions */}
-              {canEdit && (
-                <div className="p-4 border-t border-[#1f1f28]">
+              <div className="p-4 border-t border-[#1f1f28]">
+                {/* QR Code Button */}
+                <button
+                  onClick={() => setShowQRCode(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#141418] hover:bg-[#1a1a1f] text-[#8b8b9a] hover:text-white rounded-xl font-medium transition-colors border border-[#2a2a35] mb-2"
+                >
+                  <FaQrcode className="w-4 h-4" />
+                  Generate QR Code
+                </button>
+
+                {canEdit && (
                   <div className="flex gap-2">
                     <button
                       onClick={handleStartEdit}
@@ -524,8 +535,8 @@ const ListView: React.FC<ListViewProps> = ({
                       <FaTrash className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )
         ) : (
@@ -561,6 +572,15 @@ const ListView: React.FC<ListViewProps> = ({
         }}
         onCancel={() => setBoxToDelete(null)}
       />
+
+      {/* QR Code Modal */}
+      {selectedBox && (
+        <QRCodeModal
+          isOpen={showQRCode}
+          onClose={() => setShowQRCode(false)}
+          box={selectedBox}
+        />
+      )}
     </div>
   );
 };

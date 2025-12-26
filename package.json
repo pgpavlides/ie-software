@@ -19,6 +19,7 @@
     "framer-motion": "^12.23.12",
     "konva": "^10.0.12",
     "leaflet": "^1.9.4",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-datetime-picker": "^7.0.1",
     "react-dom": "^19.1.1",

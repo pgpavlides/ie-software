@@ -106,6 +106,27 @@ const KonvaMap: React.FC = () => {
     fetchBoxes();
   }, [fetchBoxes]);
 
+  // Handle URL query parameter for direct box linking (QR code scans)
+  useEffect(() => {
+    if (mapBoxes.length === 0 || loading) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const boxId = urlParams.get('box');
+
+    if (boxId) {
+      const box = mapBoxes.find(b => b.id === boxId);
+      if (box) {
+        // Use the locate function to center on the box
+        pendingLocateBoxRef.current = box;
+        setShowListView(false);
+      }
+
+      // Clear the URL parameter to avoid re-triggering
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [mapBoxes, loading]);
+
   // Update transformer when selection changes
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
