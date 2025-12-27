@@ -155,7 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       view: 'guides',
       iconPath: '/icons/BOX.svg',
       emoji: '📚',
-      roles: ['Super Admin', 'Software', 'Head of Software']
+      roles: [] // Restricted via database permissions (no Client/Prospect)
     },
     {
       name: 'Utilities',
@@ -165,18 +165,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       roles: ['Super Admin', 'Software', 'Head of Software']
     },
     {
-      name: 'Overtimes',
-      view: 'overtimes',
-      iconPath: '/icons/HUMAN.svg',
-      emoji: '⏰',
-      roles: [] // Available to everyone
-    },
-    {
-      name: 'Components',
-      view: 'components',
-      iconPath: '/icons/PUZZLE.svg',
-      emoji: '🧩',
-      roles: ['Super Admin', 'Software', 'Head of Software']
+      name: 'Useful Links',
+      view: 'useful-links',
+      iconPath: '/icons/LINK.svg',
+      emoji: '🔗',
+      roles: [] // Controlled by database permissions
     },
     {
       name: 'MAP',
@@ -186,25 +179,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       roles: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager', 'CNC']
     },
     {
-      name: 'User Management',
-      view: 'admin/users',
-      iconPath: '/icons/ADMINISTRATOR.svg',
-      emoji: '👥',
-      roles: ['Super Admin']
-    },
-    {
       name: 'Inventory',
       view: 'inventory',
       iconPath: '/icons/INVENTORY.svg',
       emoji: '📦',
       roles: ['Super Admin', 'Head of Electronics', 'Electronics']
-    },
-    {
-      name: 'Tasks',
-      view: 'tasks',
-      iconPath: '/icons/TASKS.svg',
-      emoji: '📋',
-      roles: [] // Available to everyone - global task system for all departments
     },
     {
       name: 'Files',
@@ -213,6 +192,29 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       emoji: '📁',
       roles: ['Super Admin', 'Head of Software', 'Head of Electronics', 'Head Architect', 'Head Project Manager']
     },
+    {
+      name: 'User Management',
+      view: 'admin/users',
+      iconPath: '/icons/ADMINISTRATOR.svg',
+      emoji: '👥',
+      roles: ['Super Admin']
+    },
+    // Tasks grouped together
+    {
+      name: 'Tasks',
+      view: 'tasks',
+      iconPath: '/icons/TASKS.svg',
+      emoji: '📋',
+      roles: [] // Available to everyone - global task system for all departments
+    },
+    {
+      name: 'Task Manager',
+      view: 'task-manager',
+      iconPath: '/icons/TASK_MANAGER.svg',
+      emoji: '📊',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'] // Manager access only
+    },
+    // Ticketing grouped together
     {
       name: 'Ticketing',
       view: 'ticketing',
@@ -227,12 +229,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       emoji: '📋',
       roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'] // Manager access only
     },
+    // Overtimes grouped together
     {
-      name: 'Task Manager',
-      view: 'task-manager',
-      iconPath: '/icons/TASK_MANAGER.svg',
-      emoji: '📊',
-      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'] // Manager access only
+      name: 'Overtimes',
+      view: 'overtimes',
+      iconPath: '/icons/HUMAN.svg',
+      emoji: '⏰',
+      roles: [] // Available to everyone
     },
     {
       name: 'Overtime Manager',
@@ -240,6 +243,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       iconPath: '/icons/OVERTIME_MANAGER.svg',
       emoji: '⏱️',
       roles: ['Super Admin', 'Admin', 'Boss'] // Manager access only
+    },
+    // Shop grouped together
+    {
+      name: 'Shop',
+      view: 'shop',
+      iconPath: '/icons/SHOP.svg',
+      emoji: '🛒',
+      roles: [] // Available to all staff
+    },
+    {
+      name: 'Shop Manager',
+      view: 'shop-manager',
+      iconPath: '/icons/SHOP_MANAGER.svg',
+      emoji: '📦',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'] // Manager access only
     }
   ];
 

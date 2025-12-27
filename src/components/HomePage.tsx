@@ -42,6 +42,7 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Message of the Day state
   const [messageOfTheDay, setMessageOfTheDay] = useState<MessageOfTheDay | null>(null);
@@ -253,32 +254,18 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       sectionKey: 'utilities',
     },
     {
-      id: 'overtimes',
-      title: 'Overtimes',
-      description: 'Track and manage overtime hours',
+      id: 'useful-links',
+      title: 'Useful Links',
+      description: 'Quick access to important resources and tools',
       icon: (
         <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-      ),
-      accent: 'from-[#f59e0b] to-[#fbbf24]',
-      roles: [], // Available to everyone
-      sectionKey: 'overtimes',
-    },
-    {
-      id: 'components',
-      title: 'Components',
-      description: 'UI component library and design system',
-      icon: (
-        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <path d="M9 3v18M3 9h18" />
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
         </svg>
       ),
       accent: 'from-[#8b5cf6] to-[#a78bfa]',
-      roles: ['Super Admin', 'Software', 'Head of Software'],
-      sectionKey: 'components',
+      roles: [], // Controlled by database permissions
+      sectionKey: 'useful-links',
     },
     {
       id: 'map',
@@ -306,21 +293,6 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       accent: 'from-[#06b6d4] to-[#22d3ee]',
       roles: ['Super Admin', 'Head of Electronics', 'Electronics'],
       sectionKey: 'inventory',
-    },
-    {
-      id: 'tasks',
-      title: 'Tasks',
-      description: 'View and manage assigned tasks',
-      icon: (
-        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-          <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          <path d="M9 14l2 2 4-4" />
-        </svg>
-      ),
-      accent: 'from-[#f59e0b] to-[#fbbf24]',
-      roles: [], // Available to everyone - global task system
-      sectionKey: 'tasks',
     },
     {
       id: 'files',
@@ -351,6 +323,39 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       roles: ['Super Admin'],
       sectionKey: null, // No database permission check - Super Admin only
     },
+    // Tasks grouped together
+    {
+      id: 'tasks',
+      title: 'Tasks',
+      description: 'View and manage assigned tasks',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+          <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <path d="M9 14l2 2 4-4" />
+        </svg>
+      ),
+      accent: 'from-[#f59e0b] to-[#fbbf24]',
+      roles: [], // Available to everyone - global task system
+      sectionKey: 'tasks',
+    },
+    {
+      id: 'task-manager',
+      title: 'Task Manager',
+      description: 'Manage and monitor all tasks across departments',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+          <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <path d="M9 14l2 2 4-4" />
+          <path d="M9 10h6" />
+        </svg>
+      ),
+      accent: 'from-[#f59e0b] to-[#d97706]',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'],
+      sectionKey: 'task-manager',
+    },
+    // Ticketing grouped together
     {
       id: 'ticketing',
       title: 'Ticketing',
@@ -374,25 +379,24 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
           <path d="M9 10h6M9 14h4" />
         </svg>
       ),
-      accent: 'from-[#f59e0b] to-[#fbbf24]',
+      accent: 'from-[#a855f7] to-[#9333ea]',
       roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'],
       sectionKey: 'ticket-manager',
     },
+    // Overtimes grouped together
     {
-      id: 'task-manager',
-      title: 'Task Manager',
-      description: 'Manage and monitor all tasks across departments',
+      id: 'overtimes',
+      title: 'Overtimes',
+      description: 'Track and manage overtime hours',
       icon: (
         <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-          <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          <path d="M9 14l2 2 4-4" />
-          <path d="M9 10h6" />
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
         </svg>
       ),
-      accent: 'from-[#f59e0b] to-[#d97706]',
-      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'],
-      sectionKey: 'task-manager',
+      accent: 'from-[#f59e0b] to-[#fbbf24]',
+      roles: [], // Available to everyone
+      sectionKey: 'overtimes',
     },
     {
       id: 'overtime-manager',
@@ -408,6 +412,41 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       accent: 'from-[#10b981] to-[#059669]',
       roles: ['Super Admin', 'Admin', 'Boss'],
       sectionKey: 'overtime-manager',
+    },
+    // Shop grouped together
+    {
+      id: 'shop',
+      title: 'Shop',
+      description: 'Browse and order components and supplies',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M6 6h15l-1.5 9h-12z" />
+          <circle cx="9" cy="20" r="1" />
+          <circle cx="18" cy="20" r="1" />
+          <path d="M6 6L5 2H2" />
+        </svg>
+      ),
+      accent: 'from-[#f472b6] to-[#ec4899]',
+      roles: [], // Available to all staff
+      sectionKey: 'shop',
+    },
+    {
+      id: 'shop-manager',
+      title: 'Shop Manager',
+      description: 'Manage shop inventory and process orders',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M6 6h15l-1.5 9h-12z" />
+          <circle cx="9" cy="20" r="1" />
+          <circle cx="18" cy="20" r="1" />
+          <path d="M6 6L5 2H2" />
+          <circle cx="19" cy="8" r="4" />
+          <path d="M19 6v4M17 8h4" />
+        </svg>
+      ),
+      accent: 'from-[#a855f7] to-[#9333ea]',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'],
+      sectionKey: 'shop-manager',
     },
   ];
 
@@ -723,45 +762,120 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
           className="mb-10 opacity-0 animate-[fadeSlideIn_0.6s_ease-out_forwards]"
           style={{ animationDelay: '200ms' }}
         >
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-1 h-5 bg-[#ea2127] rounded-full" />
-            <h2 className="text-lg font-semibold text-white">Quick Access</h2>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-5 bg-[#ea2127] rounded-full" />
+              <h2 className="text-lg font-semibold text-white">Quick Access</h2>
+            </div>
+
+            {/* View Toggle */}
+            <div className="flex items-center bg-[#141418] rounded-lg p-1 border border-[#1f1f28]">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#ea2127] text-white'
+                    : 'text-[#6b6b7a] hover:text-white'
+                }`}
+                title="Grid view"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-[#ea2127] text-white'
+                    : 'text-[#6b6b7a] hover:text-white'
+                }`}
+                title="List view"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {categories.map((category, index) => (
-              <button
-                key={category.id}
-                onClick={() => onSelectCategory(category.id)}
-                className="group relative text-left bg-[#141418] rounded-2xl border border-[#1f1f28] p-6 transition-all duration-300 hover:border-[#2a2a38] hover:bg-[#18181d] hover:translate-y-[-2px] focus:outline-none focus:ring-2 focus:ring-[#ea2127]/50 focus:ring-offset-2 focus:ring-offset-[#0f0f12] action-btn"
-                style={{ animationDelay: `${300 + index * 100}ms` }}
-              >
-                {/* Gradient accent on hover */}
-                <div
-                  className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r ${category.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-t-2xl`}
-                />
+          {/* Grid View */}
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {categories.map((category, index) => (
+                <button
+                  key={category.id}
+                  onClick={() => onSelectCategory(category.id)}
+                  className="group relative text-left bg-[#141418] rounded-2xl border border-[#1f1f28] p-6 transition-all duration-300 hover:border-[#2a2a38] hover:bg-[#18181d] hover:translate-y-[-2px] focus:outline-none focus:ring-2 focus:ring-[#ea2127]/50 focus:ring-offset-2 focus:ring-offset-[#0f0f12] action-btn"
+                  style={{ animationDelay: `${300 + index * 100}ms` }}
+                >
+                  {/* Gradient accent on hover */}
+                  <div
+                    className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r ${category.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-t-2xl`}
+                  />
 
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-xl bg-gradient-to-br ${category.accent} text-white shadow-lg`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${category.accent} text-white shadow-lg`}>
+                      {category.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-[#ea2127] transition-colors">
+                        {category.title}
+                      </h3>
+                      <p className="text-[#6b6b7a] text-sm leading-relaxed">
+                        {category.description}
+                      </p>
+                    </div>
+                    <div className="text-[#3a3a48] group-hover:text-[#ea2127] group-hover:translate-x-1 transition-all">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* List View */}
+          {viewMode === 'list' && (
+            <div className="bg-[#141418] rounded-2xl border border-[#1f1f28] overflow-hidden">
+              {categories.map((category, index) => (
+                <button
+                  key={category.id}
+                  onClick={() => onSelectCategory(category.id)}
+                  className={`group w-full text-left flex items-center gap-4 px-5 py-4 transition-all duration-200 hover:bg-[#1a1a23] focus:outline-none focus:bg-[#1a1a23] ${
+                    index !== categories.length - 1 ? 'border-b border-[#1f1f28]' : ''
+                  }`}
+                >
+                  {/* Icon */}
+                  <div className={`p-2.5 rounded-xl bg-gradient-to-br ${category.accent} text-white shadow-md shrink-0`}>
                     {category.icon}
                   </div>
+
+                  {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-[#ea2127] transition-colors">
+                    <h3 className="text-base font-semibold text-white group-hover:text-[#ea2127] transition-colors">
                       {category.title}
                     </h3>
-                    <p className="text-[#6b6b7a] text-sm leading-relaxed">
+                    <p className="text-[#6b6b7a] text-sm truncate">
                       {category.description}
                     </p>
                   </div>
-                  <div className="text-[#3a3a48] group-hover:text-[#ea2127] group-hover:translate-x-1 transition-all">
+
+                  {/* Arrow */}
+                  <div className="text-[#3a3a48] group-hover:text-[#ea2127] group-hover:translate-x-1 transition-all shrink-0">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M5 12h14M12 5l7 7-7 7" />
+                      <path d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
-                </div>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
 

@@ -103,6 +103,12 @@ const TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color:
   feature_request: { label: 'Feature Request', icon: <FiStar />, color: '#f59e0b' },
 };
 
+const CATEGORY_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
+  staff: { label: 'Staff', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.15)' },
+  client: { label: 'Client', color: '#22c55e', bgColor: 'rgba(34, 197, 94, 0.15)' },
+  prospect: { label: 'Prospect', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.15)' },
+};
+
 export default function TicketManagerPage() {
   const { user } = useAuthStore();
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -132,6 +138,9 @@ export default function TicketManagerPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // View mode
+  const [viewMode, setViewMode] = useState<'detailed' | 'compact'>('detailed');
 
   // Fetch all tickets
   const fetchTickets = useCallback(async (isRefresh = false) => {
@@ -639,6 +648,30 @@ export default function TicketManagerPage() {
               Clear Filters
             </button>
           )}
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-[#1a1a23] rounded-xl p-1 ml-auto">
+            <button
+              onClick={() => setViewMode('detailed')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'detailed'
+                  ? 'bg-[#ea2127] text-white'
+                  : 'text-[#6b6b7a] hover:text-white'
+              }`}
+            >
+              Detailed
+            </button>
+            <button
+              onClick={() => setViewMode('compact')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'compact'
+                  ? 'bg-[#ea2127] text-white'
+                  : 'text-[#6b6b7a] hover:text-white'
+              }`}
+            >
+              Compact
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -664,7 +697,8 @@ export default function TicketManagerPage() {
             <p className="text-white font-medium mb-1">No tickets found</p>
             <p className="text-[#6b6b7a] text-sm">Try adjusting your filters</p>
           </div>
-        ) : (
+        ) : viewMode === 'detailed' ? (
+          /* Detailed View */
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -709,9 +743,17 @@ export default function TicketManagerPage() {
                           <span className="text-white text-sm line-clamp-1 max-w-[200px]">{ticket.subject}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex flex-col">
+                          <div className="flex flex-col gap-1">
                             <span className="text-white text-sm">{ticket.creator_name}</span>
-                            <span className="text-[#6b6b7a] text-xs">{ticket.category}</span>
+                            <span
+                              className="px-2 py-0.5 rounded text-xs font-medium w-fit"
+                              style={{
+                                backgroundColor: CATEGORY_CONFIG[ticket.category]?.bgColor || 'rgba(107, 114, 128, 0.15)',
+                                color: CATEGORY_CONFIG[ticket.category]?.color || '#6b7280',
+                              }}
+                            >
+                              {CATEGORY_CONFIG[ticket.category]?.label || ticket.category}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -764,6 +806,76 @@ export default function TicketManagerPage() {
                     );
                   })}
                 </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Compact View - Ultra minimal table */
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#2a2a35] bg-[#0f0f12]">
+                  <th className="text-left px-3 py-2 font-medium text-[#6b6b7a]">#</th>
+                  <th className="text-left px-3 py-2 font-medium text-[#6b6b7a]">Subject</th>
+                  <th className="text-left px-3 py-2 font-medium text-[#6b6b7a]">From</th>
+                  <th className="text-center px-3 py-2 font-medium text-[#6b6b7a]">Cat</th>
+                  <th className="text-center px-3 py-2 font-medium text-[#6b6b7a]">Pri</th>
+                  <th className="text-center px-3 py-2 font-medium text-[#6b6b7a]">Status</th>
+                  <th className="text-right px-3 py-2 font-medium text-[#6b6b7a]">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTickets.map((ticket) => {
+                  const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.medium;
+                  const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
+                  const categoryConfig = CATEGORY_CONFIG[ticket.category] || { color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.15)', label: ticket.category };
+
+                  return (
+                    <tr
+                      key={ticket.id}
+                      onClick={() => selectTicket(ticket)}
+                      className="border-b border-[#1f1f28]/50 hover:bg-[#1a1a23] cursor-pointer transition-colors"
+                    >
+                      <td className="px-3 py-1.5">
+                        <span className="text-[#6b6b7a] font-mono">{ticket.ticket_number.replace('TKT-', '')}</span>
+                      </td>
+                      <td className="px-3 py-1.5 max-w-[300px]">
+                        <span className="text-white truncate block">{ticket.subject}</span>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <span className="text-[#9a9aa8]">{ticket.creator_name?.split(' ')[0] || 'Unknown'}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full"
+                          style={{ backgroundColor: categoryConfig.color }}
+                          title={categoryConfig.label}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full"
+                          style={{ backgroundColor: priorityConfig.color }}
+                          title={priorityConfig.label}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                          style={{
+                            backgroundColor: statusConfig.bgColor,
+                            color: statusConfig.color,
+                          }}
+                        >
+                          {statusConfig.label.substring(0, 4)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <span className="text-[#6b6b7a]">{formatDate(ticket.created_at).replace(', ', ' ')}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -821,8 +933,18 @@ export default function TicketManagerPage() {
                       </span>
                     </div>
                     <h2 className="text-xl text-white font-semibold">{selectedTicket.subject}</h2>
-                    <p className="text-sm text-[#6b6b7a] mt-1">
-                      By {selectedTicket.creator_name} ({selectedTicket.category}) • {formatDate(selectedTicket.created_at)}
+                    <p className="text-sm text-[#6b6b7a] mt-1 flex items-center gap-2 flex-wrap">
+                      <span>By {selectedTicket.creator_name}</span>
+                      <span
+                        className="px-2 py-0.5 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: CATEGORY_CONFIG[selectedTicket.category]?.bgColor || 'rgba(107, 114, 128, 0.15)',
+                          color: CATEGORY_CONFIG[selectedTicket.category]?.color || '#6b7280',
+                        }}
+                      >
+                        {CATEGORY_CONFIG[selectedTicket.category]?.label || selectedTicket.category}
+                      </span>
+                      <span>• {formatDate(selectedTicket.created_at)}</span>
                     </p>
                   </div>
                 </div>

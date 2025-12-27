@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 250">
+  <defs>
+    <style>
+      .shop-primary { fill: #1f7a8b; }
+      .shop-accent { fill: #be8e3f; }
+    </style>
+  </defs>
+  <!-- Shopping bag body -->
+  <path class="shop-accent" d="M195,215H55c-5.52,0-10-4.48-10-10V95c0-5.52,4.48-10,10-10h140c5.52,0,10,4.48,10,10v110c0,5.52-4.48,10-10,10Z"/>
+  <!-- Bag opening/top -->
+  <rect class="shop-primary" x="45" y="85" width="160" height="25" rx="5"/>
+  <!-- Handle -->
+  <path class="shop-primary" d="M165,85V60c0-22.09-17.91-40-40-40s-40,17.91-40,40v25h15V60c0-13.81,11.19-25,25-25s25,11.19,25,25v25h15Z"/>
+  <!-- Shopping tag/label -->
+  <circle class="shop-primary" cx="125" cy="155" r="25"/>
+  <text x="125" y="165" text-anchor="middle" fill="#fff" font-size="30" font-weight="bold">$</text>
+</svg>

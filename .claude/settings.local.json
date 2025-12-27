@@ -40,7 +40,11 @@
       "Bash(for file in /mnt/c/Users/pgpav/Documents/GitHub/ie-software/supabase/migrations/*.sql)",
       "Bash(do if grep -q \"role_section_permissions\" \"$file\")",
       "Bash(then echo \"=== $file ===\" grep -B 5 -A 20 \"role_section_permissions\" \"$file\")",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "mcp__plugin_supabase_supabase__get_logs",
+      "mcp__plugin_supabase_supabase__list_edge_functions",
+      "mcp__plugin_supabase_supabase__get_edge_function",
+      "Bash(find:*)"
     ],
     "deny": []
   }

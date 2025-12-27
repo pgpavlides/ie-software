@@ -67,7 +67,7 @@ const AVAILABLE_SECTIONS = [
   { key: 'utilities', name: 'Utilities', icon: '🛠️', description: 'Developer utilities', hasEditPermission: false },
   { key: 'overtimes', name: 'Overtimes', icon: '⏰', description: 'Overtime tracking', hasEditPermission: false },
   { key: 'overtime-manager', name: 'Overtime Manager', icon: '📊', description: 'Manage all employee overtimes', hasEditPermission: false },
-  { key: 'components', name: 'Components', icon: '🧩', description: 'Component library', hasEditPermission: false },
+  { key: 'useful-links', name: 'Useful Links', icon: '🔗', description: 'Quick access to important resources', hasEditPermission: true },
   { key: 'map', name: 'Map', icon: '🗺️', description: 'Company map view', hasEditPermission: true },
   { key: 'admin/users', name: 'User Management', icon: '👥', description: 'Manage users and roles', hasEditPermission: false },
   { key: 'inventory', name: 'Inventory', icon: '📦', description: 'Inventory management', hasEditPermission: true },
@@ -76,6 +76,8 @@ const AVAILABLE_SECTIONS = [
   { key: 'ticketing', name: 'Ticketing', icon: '🎫', description: 'Ticketing system', hasEditPermission: false },
   { key: 'ticket-manager', name: 'Ticket Manager', icon: '📋', description: 'Manage all tickets across the system', hasEditPermission: false },
   { key: 'task-manager', name: 'Task Manager', icon: '📊', description: 'Manage all tasks across departments', hasEditPermission: false },
+  { key: 'shop', name: 'Shop', icon: '🛒', description: 'Browse and order components', hasEditPermission: false },
+  { key: 'shop-manager', name: 'Shop Manager', icon: '📦', description: 'Manage shop items and orders', hasEditPermission: false },
 ];
 
 export default function UserManagement() {

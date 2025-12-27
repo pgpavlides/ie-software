@@ -8,7 +8,7 @@ import RoomDetails from './components/RoomDetails';
 import RoomInfo from './components/RoomInfo';
 import UtilitiesPage from './components/UtilitiesPage';
 import OvertimesPage from './components/OvertimesPage';
-import ComponentsPage from './components/ComponentsPage';
+import UsefulLinksPage from './components/UsefulLinksPage';
 import { KonvaMap } from './components/KonvaMap';
 import BoxInfoPage from './components/KonvaMap/BoxInfoPage';
 import { DeveloperOptionsProvider } from './contexts/DeveloperOptionsContext';
@@ -26,11 +26,14 @@ import TicketingPage from './components/TicketingPage';
 import TicketManagerPage from './components/TicketManagerPage';
 import TaskManagerPage from './components/TaskManagerPage';
 import OvertimeManagerPage from './components/OvertimeManagerPage';
+import GuidesPage from './components/GuidesPage';
+import ShopPage from './components/ShopPage';
+import ShopManagerPage from './components/ShopManagerPage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
 import supabase from './lib/supabase';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files' | 'ticketing' | 'ticket-manager' | 'task-manager' | 'overtime-manager';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'useful-links' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files' | 'ticketing' | 'ticket-manager' | 'task-manager' | 'overtime-manager' | 'shop' | 'shop-manager';
 
 // Router-aware components
 function AppContent() {
@@ -43,7 +46,7 @@ function AppContent() {
     if (location.pathname.startsWith('/guides')) return 'guides';
     if (location.pathname.startsWith('/utilities')) return 'utilities';
     if (location.pathname.startsWith('/overtimes')) return 'overtimes';
-    if (location.pathname.startsWith('/components')) return 'components';
+    if (location.pathname.startsWith('/useful-links')) return 'useful-links';
     if (location.pathname.startsWith('/map')) return 'map';
     if (location.pathname.startsWith('/admin/users')) return 'admin/users';
     if (location.pathname.startsWith('/inventory')) return 'inventory';
@@ -54,6 +57,8 @@ function AppContent() {
     if (location.pathname.startsWith('/ticket-manager')) return 'ticket-manager';
     if (location.pathname.startsWith('/task-manager')) return 'task-manager';
     if (location.pathname.startsWith('/overtime-manager')) return 'overtime-manager';
+    if (location.pathname.startsWith('/shop-manager')) return 'shop-manager';
+    if (location.pathname.startsWith('/shop')) return 'shop';
     return 'dashboard';
   };
 
@@ -74,8 +79,8 @@ function AppContent() {
       case 'overtimes':
         navigate('/overtimes');
         break;
-      case 'components':
-        navigate('/components');
+      case 'useful-links':
+        navigate('/useful-links');
         break;
       case 'map':
         navigate('/map');
@@ -106,6 +111,12 @@ function AppContent() {
         break;
       case 'overtime-manager':
         navigate('/overtime-manager');
+        break;
+      case 'shop':
+        navigate('/shop');
+        break;
+      case 'shop-manager':
+        navigate('/shop-manager');
         break;
     }
   };
@@ -361,9 +372,9 @@ function RouteGuard({ children, allowedRoles, sectionKey }: { children: React.Re
 // Route role configurations (matching Sidebar.tsx)
 const ROUTE_ROLES = {
   room: ['Super Admin', 'Software', 'Head of Software'],
-  guides: ['Super Admin', 'Software', 'Head of Software'],
+  guides: [], // Available to everyone (writing restricted in component)
   utilities: ['Super Admin', 'Software', 'Head of Software'],
-  components: ['Super Admin', 'Software', 'Head of Software'],
+  'useful-links': ['Super Admin', 'Software', 'Head of Software', 'Boss'],
   map: ['Super Admin', 'Head Architect', 'Project Manager', 'Head Project Manager', 'CNC'],
   'admin/users': ['Super Admin'],
   inventory: ['Super Admin', 'Head of Electronics', 'Electronics'],
@@ -377,6 +388,8 @@ const ROUTE_ROLES = {
   'ticket-manager': ['Super Admin', 'Boss', 'Efficiency Coordinator'], // Ticket management
   'task-manager': ['Super Admin', 'Boss', 'Efficiency Coordinator'], // Task management
   'overtime-manager': ['Super Admin', 'Admin', 'Boss'], // Overtime management
+  shop: [], // Available to all staff
+  'shop-manager': ['Super Admin', 'Boss', 'Efficiency Coordinator'], // Shop management
 };
 
 function App() {
@@ -441,15 +454,12 @@ function App() {
               {/* Other Pages - All protected by database permission */}
               <Route path="guides" element={
                 <RouteGuard allowedRoles={ROUTE_ROLES.guides} sectionKey="guides">
-                  <div className="min-h-full bg-[#0f0f12] p-8">
-                    <h1 className="text-4xl font-bold text-white mb-4">Guides</h1>
-                    <p className="text-xl text-[#6b6b7a]">Documentation and guides will be available here.</p>
-                  </div>
+                  <GuidesPage />
                 </RouteGuard>
               } />
               <Route path="utilities" element={<RouteGuard allowedRoles={ROUTE_ROLES.utilities} sectionKey="utilities"><UtilitiesPage /></RouteGuard>} />
               <Route path="overtimes" element={<RouteGuard allowedRoles={ROUTE_ROLES.overtimes} sectionKey="overtimes"><OvertimesPage /></RouteGuard>} />
-              <Route path="components" element={<RouteGuard allowedRoles={ROUTE_ROLES.components} sectionKey="components"><ComponentsPage /></RouteGuard>} />
+              <Route path="useful-links" element={<RouteGuard allowedRoles={ROUTE_ROLES['useful-links']} sectionKey="useful-links"><UsefulLinksPage /></RouteGuard>} />
               <Route path="map" element={<RouteGuard allowedRoles={ROUTE_ROLES.map} sectionKey="map"><KonvaMap /></RouteGuard>} />
               <Route path="admin/users" element={<RouteGuard allowedRoles={ROUTE_ROLES['admin/users']} sectionKey="admin/users"><UserManagement /></RouteGuard>} />
               <Route path="admin/countries" element={
@@ -466,6 +476,8 @@ function App() {
               <Route path="ticket-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['ticket-manager']} sectionKey="ticket-manager"><TicketManagerPage /></RouteGuard>} />
               <Route path="task-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['task-manager']} sectionKey="task-manager"><TaskManagerPage /></RouteGuard>} />
               <Route path="overtime-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['overtime-manager']} sectionKey="overtime-manager"><OvertimeManagerPage /></RouteGuard>} />
+              <Route path="shop" element={<RouteGuard allowedRoles={ROUTE_ROLES.shop} sectionKey="shop"><ShopPage /></RouteGuard>} />
+              <Route path="shop-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['shop-manager']} sectionKey="shop-manager"><ShopManagerPage /></RouteGuard>} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>
