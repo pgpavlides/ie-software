@@ -313,6 +313,7 @@ interface FileCardProps {
   onRename: () => void;
   onDelete: () => void;
   canEdit: boolean;
+  canDeleteRename: boolean;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onDragStart: (e: React.DragEvent) => void;
@@ -325,7 +326,7 @@ interface FileCardProps {
 }
 
 const FileCard: React.FC<FileCardProps> = ({
-  item, isFolder, viewMode, index, onOpen, onRename, onDelete, canEdit,
+  item, isFolder, viewMode, index, onOpen, onRename, onDelete, canEdit, canDeleteRename,
   isSelected, onSelect, onDragStart, onDragOver, onDragLeave, onDrop, isDragTarget, selectionMode,
   onContextMenu
 }) => {
@@ -355,12 +356,13 @@ const FileCard: React.FC<FileCardProps> = ({
         onClick={onSelect}
         onDoubleClick={onOpen}
         onContextMenu={onContextMenu}
-        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group cursor-pointer ${
+        data-file-card
+        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group cursor-pointer border-2 ${
           isDragTarget
-            ? 'bg-[#ea2127]/20 border-2 border-[#ea2127] border-dashed'
+            ? 'bg-[#ea2127]/20 border-[#ea2127] border-dashed'
             : isSelected
-            ? 'bg-[#ea2127]/10 border border-[#ea2127]/50'
-            : 'bg-[#141418]/50 hover:bg-[#1a1a1f] border border-[#1f1f28] hover:border-[#2a2a35]'
+            ? 'bg-[#ea2127]/10 border-[#ea2127]/50'
+            : 'bg-[#141418]/50 hover:bg-[#1a1a1f] border-[#1f1f28]/50 hover:border-[#2a2a35]'
         }`}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
@@ -388,7 +390,7 @@ const FileCard: React.FC<FileCardProps> = ({
           </div>
         )}
 
-        {canEdit && !isSystem && showActions && !selectionMode && (
+        {canDeleteRename && !isSystem && showActions && !selectionMode && (
           <div className="flex items-center gap-1">
             <button
               onClick={(e) => { e.stopPropagation(); onRename(); }}
@@ -423,12 +425,13 @@ const FileCard: React.FC<FileCardProps> = ({
       onClick={onSelect}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
-      className={`group relative rounded-2xl p-4 transition-all text-left overflow-hidden cursor-pointer ${
+      data-file-card
+      className={`group relative rounded-2xl p-4 transition-all text-left overflow-hidden cursor-pointer border-2 ${
         isDragTarget
-          ? 'bg-[#ea2127]/20 border-2 border-[#ea2127] border-dashed'
+          ? 'bg-[#ea2127]/20 border-[#ea2127] border-dashed'
           : isSelected
-          ? 'bg-[#ea2127]/10 border-2 border-[#ea2127]/50'
-          : 'bg-[#141418]/80 hover:bg-[#1a1a1f] border border-[#1f1f28] hover:border-[#2a2a35]'
+          ? 'bg-[#ea2127]/10 border-[#ea2127]/50'
+          : 'bg-[#141418]/80 hover:bg-[#1a1a1f] border-[#1f1f28]/50 hover:border-[#2a2a35]'
       }`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -441,8 +444,8 @@ const FileCard: React.FC<FileCardProps> = ({
         }}
       />
 
-      {/* Actions */}
-      {canEdit && !isSystem && showActions && !selectionMode && (
+      {/* Actions - hidden for Clients/Prospects */}
+      {canDeleteRename && !isSystem && showActions && !selectionMode && (
         <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
           <button
             onClick={(e) => { e.stopPropagation(); onRename(); }}
@@ -1010,6 +1013,9 @@ const FileSystemPage: React.FC = () => {
   const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number; folder: FileFolder } | null>(null);
   const [holdDeleteModalOpen, setHoldDeleteModalOpen] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<FileFolder | null>(null);
+
+  // Empty area context menu state
+  const [emptyAreaContextMenu, setEmptyAreaContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   // Media preview state
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string; file: FileItem } | null>(null);
@@ -1762,6 +1768,15 @@ const FileSystemPage: React.FC = () => {
     }
   }, [contextMenu, closeContextMenu]);
 
+  // Close empty area context menu on click outside
+  useEffect(() => {
+    const handleClick = () => setEmptyAreaContextMenu(null);
+    if (emptyAreaContextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [emptyAreaContextMenu]);
+
   // Change folder icon
   const handleChangeIcon = async (icon: string) => {
     if (!contextMenu || !contextMenu.isFolder) return;
@@ -2108,32 +2123,39 @@ const FileSystemPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Bulk Actions Toolbar */}
+      {/* Bulk Actions Toolbar - Floating Bottom */}
       <AnimatePresence>
         {selectedItems.size > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="relative z-10 flex items-center justify-between px-6 py-3 bg-[#ea2127]/10 border-b border-[#ea2127]/30"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-6 py-3 bg-[#1a1a23]/95 backdrop-blur-xl border border-[#ea2127]/40 rounded-2xl shadow-2xl shadow-black/50"
           >
             <div className="flex items-center gap-4">
-              <span className="text-white font-medium">
-                {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
-              </span>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#ea2127]/20 flex items-center justify-center">
+                  <span className="text-[#ea2127] font-bold text-sm">{selectedItems.size}</span>
+                </div>
+                <span className="text-white font-medium">
+                  item{selectedItems.size > 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <div className="w-px h-6 bg-[#2a2a35]" />
               <button
                 onClick={selectAll}
-                className="text-sm text-[#8b8b9a] hover:text-white transition-colors"
+                className="px-3 py-1.5 text-sm text-[#8b8b9a] hover:text-white bg-[#2a2a35]/50 hover:bg-[#2a2a35] rounded-lg transition-colors"
               >
                 Select All
               </button>
               <button
                 onClick={clearSelection}
-                className="text-sm text-[#8b8b9a] hover:text-white transition-colors"
+                className="px-3 py-1.5 text-sm text-[#8b8b9a] hover:text-white bg-[#2a2a35]/50 hover:bg-[#2a2a35] rounded-lg transition-colors"
               >
                 Clear Selection
               </button>
             </div>
+            <div className="w-px h-6 bg-[#2a2a35]" />
             <div className="flex items-center gap-2">
               {/* Download button - always visible */}
               <button
@@ -2144,8 +2166,8 @@ const FileSystemPage: React.FC = () => {
                 {downloading ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiDownload className="w-4 h-4" />}
                 <span>{downloading ? 'Downloading...' : 'Download'}</span>
               </button>
-              {/* Move button - only when can edit */}
-              {canEdit && (
+              {/* Move button - only when can edit and not Client/Prospect */}
+              {canEdit && !isClientUser && !isProspectUser && (
                 <button
                   onClick={() => setMoveModalOpen(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-[#1f1f28] hover:bg-[#2a2a38] text-white rounded-xl transition-colors font-medium text-sm"
@@ -2154,8 +2176,8 @@ const FileSystemPage: React.FC = () => {
                   <span>Move</span>
                 </button>
               )}
-              {/* Delete button - only when can edit */}
-              {canEdit && (
+              {/* Delete button - only when can edit and not Client/Prospect */}
+              {canEdit && !isClientUser && !isProspectUser && (
                 <button
                   onClick={handleBulkDelete}
                   className="flex items-center gap-2 px-4 py-2 bg-[#ea2127] hover:bg-[#d11920] text-white rounded-xl transition-colors font-medium text-sm"
@@ -2165,6 +2187,13 @@ const FileSystemPage: React.FC = () => {
                 </button>
               )}
             </div>
+            {/* Close button */}
+            <button
+              onClick={clearSelection}
+              className="ml-2 p-1.5 text-[#6b6b7a] hover:text-white hover:bg-[#2a2a35] rounded-lg transition-colors"
+            >
+              <FiX className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2210,7 +2239,33 @@ const FileSystemPage: React.FC = () => {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main
+          className="flex-1 overflow-y-auto p-6"
+          onClick={(e) => {
+            // Clear selection when clicking on empty space (not on a card)
+            if (e.target === e.currentTarget || (e.target as HTMLElement).closest('[data-content-area]')) {
+              if (selectedItems.size > 0) {
+                clearSelection();
+              }
+            }
+            // Close empty area context menu
+            if (emptyAreaContextMenu) {
+              setEmptyAreaContextMenu(null);
+            }
+          }}
+          onContextMenu={(e) => {
+            // Show context menu when right-clicking on empty space (not on a file card)
+            const target = e.target as HTMLElement;
+            if (!target.closest('[data-file-card]') && selectedFolder) {
+              e.preventDefault();
+              setEmptyAreaContextMenu({ x: e.clientX, y: e.clientY });
+              // Clear selection
+              if (selectedItems.size > 0) {
+                clearSelection();
+              }
+            }
+          }}
+        >
           {/* Breadcrumb */}
           <div className="mb-6">
             <Breadcrumb path={breadcrumbPath} onNavigate={handleBreadcrumbNavigate} />
@@ -2298,7 +2353,7 @@ const FileSystemPage: React.FC = () => {
               </p>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div data-content-area className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 min-h-[200px]">
               {filteredItems.folders.map((folder, index) => (
                 <FileCard
                   key={folder.id}
@@ -2316,6 +2371,7 @@ const FileSystemPage: React.FC = () => {
                     setDeleteModalOpen(true);
                   }}
                   canEdit={canEdit}
+                  canDeleteRename={canEdit && !isClientUser && !isProspectUser}
                   isSelected={selectedItems.has(folder.id)}
                   onSelect={(e) => handleItemSelect(folder.id, true, index, e)}
                   onDragStart={(e) => handleDragStart(folder.id, true, e)}
@@ -2344,6 +2400,7 @@ const FileSystemPage: React.FC = () => {
                     setDeleteModalOpen(true);
                   }}
                   canEdit={canEdit}
+                  canDeleteRename={canEdit && !isClientUser && !isProspectUser}
                   isSelected={selectedItems.has(file.id)}
                   onSelect={(e) => handleItemSelect(file.id, false, filteredItems.folders.length + index, e)}
                   onDragStart={(e) => handleDragStart(file.id, false, e)}
@@ -2357,7 +2414,7 @@ const FileSystemPage: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div data-content-area className="space-y-2 min-h-[200px]">
               {filteredItems.folders.map((folder, index) => (
                 <FileCard
                   key={folder.id}
@@ -2375,6 +2432,7 @@ const FileSystemPage: React.FC = () => {
                     setDeleteModalOpen(true);
                   }}
                   canEdit={canEdit}
+                  canDeleteRename={canEdit && !isClientUser && !isProspectUser}
                   isSelected={selectedItems.has(folder.id)}
                   onSelect={(e) => handleItemSelect(folder.id, true, index, e)}
                   onDragStart={(e) => handleDragStart(folder.id, true, e)}
@@ -2403,6 +2461,7 @@ const FileSystemPage: React.FC = () => {
                     setDeleteModalOpen(true);
                   }}
                   canEdit={canEdit}
+                  canDeleteRename={canEdit && !isClientUser && !isProspectUser}
                   isSelected={selectedItems.has(file.id)}
                   onSelect={(e) => handleItemSelect(file.id, false, filteredItems.folders.length + index, e)}
                   onDragStart={(e) => handleDragStart(file.id, false, e)}
@@ -2480,17 +2539,20 @@ const FileSystemPage: React.FC = () => {
             style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={() => {
-                setItemToEdit({ item: sidebarContextMenu.folder, isFolder: true });
-                setRenameModalOpen(true);
-                closeSidebarContextMenu();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
-            >
-              <FiEdit2 className="w-4 h-4" />
-              <span className="text-sm">Rename</span>
-            </button>
+            {/* Rename - hidden for Clients/Prospects */}
+            {!isClientUser && !isProspectUser && (
+              <button
+                onClick={() => {
+                  setItemToEdit({ item: sidebarContextMenu.folder, isFolder: true });
+                  setRenameModalOpen(true);
+                  closeSidebarContextMenu();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+              >
+                <FiEdit2 className="w-4 h-4" />
+                <span className="text-sm">Rename</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setContextMenu({ x: sidebarContextMenu.x, y: sidebarContextMenu.y, item: sidebarContextMenu.folder, isFolder: true });
@@ -2513,18 +2575,23 @@ const FileSystemPage: React.FC = () => {
               <FiDroplet className="w-4 h-4" />
               <span className="text-sm">Change Color</span>
             </button>
-            <div className="border-t border-[#2a2a35] my-1" />
-            <button
-              onClick={() => {
-                setFolderToDelete(sidebarContextMenu.folder);
-                setHoldDeleteModalOpen(true);
-                closeSidebarContextMenu();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#ea2127] hover:bg-[#ea2127]/10 transition-colors"
-            >
-              <FiTrash2 className="w-4 h-4" />
-              <span className="text-sm">Delete</span>
-            </button>
+            {/* Delete - hidden for Clients/Prospects */}
+            {!isClientUser && !isProspectUser && (
+              <>
+                <div className="border-t border-[#2a2a35] my-1" />
+                <button
+                  onClick={() => {
+                    setFolderToDelete(sidebarContextMenu.folder);
+                    setHoldDeleteModalOpen(true);
+                    closeSidebarContextMenu();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#ea2127] hover:bg-[#ea2127]/10 transition-colors"
+                >
+                  <FiTrash2 className="w-4 h-4" />
+                  <span className="text-sm">Delete</span>
+                </button>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -2578,8 +2645,8 @@ const FileSystemPage: React.FC = () => {
                 <div className="border-t border-[#2a2a35] my-1" />
               </>
             )}
-            {/* Edit options - only show if user can edit */}
-            {canEdit && (
+            {/* Edit options - only show if user can edit and not Client/Prospect */}
+            {canEdit && !isClientUser && !isProspectUser && (
               <button
                 onClick={() => {
                   setItemToEdit({ item: contextMenu.item, isFolder: contextMenu.isFolder });
@@ -2614,8 +2681,9 @@ const FileSystemPage: React.FC = () => {
                 </button>
               </>
             )}
-            {canEdit && <div className="border-t border-[#2a2a35] my-1" />}
-            {canEdit && (
+            {/* Delete - hidden for Clients/Prospects */}
+            {canEdit && !isClientUser && !isProspectUser && <div className="border-t border-[#2a2a35] my-1" />}
+            {canEdit && !isClientUser && !isProspectUser && (
               <button
                 onClick={() => {
                   setItemToEdit({ item: contextMenu.item, isFolder: contextMenu.isFolder });
@@ -2628,6 +2696,63 @@ const FileSystemPage: React.FC = () => {
                 <span className="text-sm">Delete</span>
               </button>
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Empty Area Context Menu */}
+      <AnimatePresence>
+        {emptyAreaContextMenu && selectedFolder && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            className="fixed z-50 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl shadow-2xl py-2 min-w-[180px]"
+            style={{ left: emptyAreaContextMenu.x, top: emptyAreaContextMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* New Folder - only if can edit and not Client/Prospect */}
+            {canEdit && !isClientUser && !isProspectUser && (
+              <button
+                onClick={() => {
+                  setCreateModalOpen(true);
+                  setEmptyAreaContextMenu(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+              >
+                <FiPlus className="w-4 h-4" />
+                <span className="text-sm">New Folder</span>
+              </button>
+            )}
+            {/* Upload Files - only if can edit */}
+            {canEdit && (
+              <button
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  setEmptyAreaContextMenu(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+              >
+                <FiUpload className="w-4 h-4" />
+                <span className="text-sm">Upload Files</span>
+              </button>
+            )}
+            {canEdit && <div className="border-t border-[#2a2a35] my-1" />}
+            {/* Copy Link */}
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}${window.location.pathname}?folder=${selectedFolder.id}`;
+                navigator.clipboard.writeText(url);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+                setEmptyAreaContextMenu(null);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+            >
+              <FiLink className="w-4 h-4" />
+              <span className="text-sm">{linkCopied ? 'Link Copied!' : 'Copy Link'}</span>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
