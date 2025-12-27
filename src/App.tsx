@@ -22,11 +22,12 @@ import InventoryPage from './components/InventoryPage';
 import OrderListPage from './components/OrderListPage';
 import TasksPage from './components/TasksPage';
 import FileSystemPage from './components/FileSystemPage';
+import TicketingPage from './components/TicketingPage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
 import supabase from './lib/supabase';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files' | 'ticketing';
 
 // Router-aware components
 function AppContent() {
@@ -46,6 +47,7 @@ function AppContent() {
     if (location.pathname.startsWith('/tasks')) return 'tasks';
     if (location.pathname.startsWith('/profile')) return 'profile';
     if (location.pathname.startsWith('/files')) return 'files';
+    if (location.pathname.startsWith('/ticketing')) return 'ticketing';
     return 'dashboard';
   };
 
@@ -86,6 +88,9 @@ function AppContent() {
         break;
       case 'files':
         navigate('/files');
+        break;
+      case 'ticketing':
+        navigate('/ticketing');
         break;
     }
   };
@@ -353,6 +358,7 @@ const ROUTE_ROLES = {
   overtimes: [],
   tasks: [],
   profile: [],
+  ticketing: [], // Available to everyone
 };
 
 function App() {
@@ -438,6 +444,7 @@ function App() {
               <Route path="order-list" element={<RouteGuard allowedRoles={ROUTE_ROLES.inventory} sectionKey="inventory"><OrderListPage /></RouteGuard>} />
               <Route path="tasks" element={<RouteGuard allowedRoles={ROUTE_ROLES.tasks} sectionKey="tasks"><TasksPage /></RouteGuard>} />
               <Route path="files" element={<RouteGuard allowedRoles={ROUTE_ROLES.files} sectionKey="files"><FileSystemPage /></RouteGuard>} />
+              <Route path="ticketing" element={<RouteGuard allowedRoles={ROUTE_ROLES.ticketing} sectionKey="ticketing"><TicketingPage /></RouteGuard>} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>

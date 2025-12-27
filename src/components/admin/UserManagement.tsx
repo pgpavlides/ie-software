@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import supabase from '../../lib/supabase';
+import { useAuthStore } from '../../store/authStore';
 
 interface User {
   id: string;
@@ -72,9 +73,16 @@ const AVAILABLE_SECTIONS = [
   { key: 'inventory', name: 'Inventory', icon: '📦', description: 'Inventory management', hasEditPermission: true },
   { key: 'tasks', name: 'Tasks', icon: '📋', description: 'Task management', hasEditPermission: false },
   { key: 'files', name: 'Files', icon: '📁', description: 'File system browser', hasEditPermission: true },
+  { key: 'ticketing', name: 'Ticketing', icon: '🎫', description: 'Ticketing system (Edit = view all tickets)', hasEditPermission: true },
 ];
 
 export default function UserManagement() {
+  const { hasRole } = useAuthStore();
+  const isCurrentUserSuperAdmin = hasRole('Super Admin');
+
+  // Only Super Admin, Admin, and Boss can manage folder permissions
+  const canManageFolderPermissions = hasRole('Super Admin') || hasRole('Admin') || hasRole('Boss');
+
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -111,6 +119,7 @@ export default function UserManagement() {
   const [selectedUserForFolders, setSelectedUserForFolders] = useState<User | null>(null);
   const [folderPermissionsLoading, setFolderPermissionsLoading] = useState(false);
   const [folderPermissionsSaved, setFolderPermissionsSaved] = useState(false);
+  const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0 });
   const [pendingFolderChanges, setPendingFolderChanges] = useState<Map<string, { canView: boolean; canEdit: boolean }>>(new Map());
   const [expandedPermissionFolders, setExpandedPermissionFolders] = useState<Set<string>>(new Set());
 
@@ -431,16 +440,135 @@ export default function UserManagement() {
     });
   };
 
+  // Check if user has a privileged role that grants automatic folder access
+  const getUserFolderAccessLevel = () => {
+    if (!selectedUserForFolders) return 'none';
+    const roles = selectedUserForFolders.roles || [];
+
+    // Client and Prospect = individual folder permissions (special treatment)
+    if (roles.includes('Client') || roles.includes('Prospect')) {
+      return 'none';
+    }
+
+    // Super Admin, C-Level, Boss = full access
+    if (roles.includes('Super Admin') || roles.includes('C-Level') || roles.includes('Boss')) {
+      return 'full';
+    }
+
+    // Generic "Head" role = full access
+    if (roles.includes('Head')) {
+      return 'full';
+    }
+
+    // Head of X roles (Head of Accounting, Head of Software, etc.) = full access
+    if (roles.some(role => role.startsWith('Head of') || role.startsWith('Head '))) {
+      return 'full';
+    }
+
+    // All other roles = everything except Legal/Documentation
+    return 'standard';
+  };
+
+  // Check if user has any custom folder permissions set
+  const hasCustomPermissions = () => {
+    return userFolderPermissions.length > 0;
+  };
+
+  // Get the role-based default permission for a folder
+  const getRoleBasedDefault = (folderPath?: string) => {
+    const accessLevel = getUserFolderAccessLevel();
+
+    if (accessLevel === 'full') {
+      return { canView: true, canEdit: true };
+    }
+
+    if (accessLevel === 'standard') {
+      const lowerPath = folderPath?.toLowerCase() || '';
+      const isRestricted = lowerPath.includes('/legal') || lowerPath.includes('/documentation');
+      if (!isRestricted) {
+        return { canView: true, canEdit: true };
+      }
+      return { canView: false, canEdit: false };
+    }
+
+    // Client/Prospect - no default access
+    return { canView: false, canEdit: false };
+  };
+
   // Get current permission state for a folder (pending or saved)
-  const getFolderPermission = (folderId: string) => {
+  const getFolderPermission = (folderId: string, folderPath?: string) => {
     const pending = pendingFolderChanges.get(folderId);
     if (pending) return pending;
 
-    const existing = userFolderPermissions.find((p) => p.folder_id === folderId);
-    return {
-      canView: existing?.can_view || false,
-      canEdit: existing?.can_edit || false,
-    };
+    // Check if user has any custom permissions - if so, use individual permissions
+    if (hasCustomPermissions()) {
+      const existing = userFolderPermissions.find((p) => p.folder_id === folderId);
+      if (existing) {
+        return {
+          canView: existing.can_view || false,
+          canEdit: existing.can_edit || false,
+        };
+      }
+      // Has custom permissions but not for this folder - use default for this folder
+      return getRoleBasedDefault(folderPath);
+    }
+
+    // No custom permissions - use pure role-based defaults
+    return getRoleBasedDefault(folderPath);
+  };
+
+  // Reset permissions to role-based defaults
+  const resetToDefaults = async () => {
+    if (!selectedUserForFolders) return;
+
+    setFolderPermissionsLoading(true);
+    try {
+      // Delete all custom permissions for this user
+      const { error } = await supabase
+        .from('user_folder_permissions')
+        .delete()
+        .eq('user_id', selectedUserForFolders.id);
+
+      if (error) throw error;
+
+      // Clear pending changes and reload
+      setPendingFolderChanges(new Map());
+      setUserFolderPermissions([]);
+
+    } catch (error) {
+      console.error('Error resetting permissions:', error);
+    } finally {
+      setFolderPermissionsLoading(false);
+    }
+  };
+
+  // Select all folders (grant view permission to all)
+  const selectAllFolders = () => {
+    const newChanges = new Map(pendingFolderChanges);
+    for (const folder of allFolders) {
+      const existing = userFolderPermissions.find((p) => p.folder_id === folder.id);
+      const currentlyHasView = existing?.can_view || false;
+      // Only add to pending if it's actually a change
+      if (!currentlyHasView) {
+        newChanges.set(folder.id, { canView: true, canEdit: false });
+      }
+    }
+    setPendingFolderChanges(newChanges);
+  };
+
+  // Deselect all folders (revoke all permissions)
+  const deselectAllFolders = () => {
+    const newChanges = new Map(pendingFolderChanges);
+    for (const folder of allFolders) {
+      const existing = userFolderPermissions.find((p) => p.folder_id === folder.id);
+      const currentlyHasView = existing?.can_view || false;
+      const currentlyHasEdit = existing?.can_edit || false;
+      // Only add to pending if it's actually a change
+      if (currentlyHasView || currentlyHasEdit) {
+        newChanges.set(folder.id, { canView: false, canEdit: false });
+      }
+    }
+    setPendingFolderChanges(newChanges);
   };
 
   // Save folder permissions
@@ -448,24 +576,79 @@ export default function UserManagement() {
     if (!selectedUserForFolders || pendingFolderChanges.size === 0) return;
 
     setFolderPermissionsLoading(true);
+    setSaveProgress({ current: 0, total: 0 });
+
     try {
-      for (const [folderId, permissions] of pendingFolderChanges) {
-        if (permissions.canView) {
-          // Grant permission
+      // For privileged users, we need to save ALL folder states to override role defaults
+      // This ensures custom permissions are persisted properly
+      const accessLevel = getUserFolderAccessLevel();
+
+      if (accessLevel !== 'none') {
+        // Calculate folders to save
+        const foldersToSave: { folder: typeof allFolders[0]; finalView: boolean; finalEdit: boolean }[] = [];
+
+        for (const folder of allFolders) {
+          const pending = pendingFolderChanges.get(folder.id);
+          const existing = userFolderPermissions.find((p) => p.folder_id === folder.id);
+          const roleDefault = getRoleBasedDefault(folder.path);
+
+          let finalView: boolean;
+          let finalEdit: boolean;
+
+          if (pending) {
+            finalView = pending.canView;
+            finalEdit = pending.canEdit;
+          } else if (existing) {
+            finalView = existing.can_view;
+            finalEdit = existing.can_edit;
+          } else {
+            finalView = roleDefault.canView;
+            finalEdit = roleDefault.canEdit;
+          }
+
+          // Only save if different from role default OR if we have pending changes for this folder
+          if (pending || (finalView !== roleDefault.canView) || (finalEdit !== roleDefault.canEdit)) {
+            foldersToSave.push({ folder, finalView, finalEdit });
+          }
+        }
+
+        // Set total and save with progress tracking
+        setSaveProgress({ current: 0, total: foldersToSave.length });
+
+        for (let i = 0; i < foldersToSave.length; i++) {
+          const { folder, finalView, finalEdit } = foldersToSave[i];
           const { error } = await supabase.rpc('grant_user_folder_permission', {
             target_user_id: selectedUserForFolders.id,
-            target_folder_id: folderId,
-            grant_view: permissions.canView,
-            grant_edit: permissions.canEdit,
+            target_folder_id: folder.id,
+            grant_view: finalView,
+            grant_edit: finalEdit,
           });
           if (error) throw error;
-        } else {
-          // Revoke permission
-          const { error } = await supabase.rpc('revoke_user_folder_permission', {
-            target_user_id: selectedUserForFolders.id,
-            target_folder_id: folderId,
-          });
-          if (error) throw error;
+          setSaveProgress({ current: i + 1, total: foldersToSave.length });
+        }
+      } else {
+        // Non-privileged user (Client/Prospect) - save only pending changes
+        const pendingArray = Array.from(pendingFolderChanges.entries());
+        setSaveProgress({ current: 0, total: pendingArray.length });
+
+        for (let i = 0; i < pendingArray.length; i++) {
+          const [folderId, permissions] = pendingArray[i];
+          if (permissions.canView) {
+            const { error } = await supabase.rpc('grant_user_folder_permission', {
+              target_user_id: selectedUserForFolders.id,
+              target_folder_id: folderId,
+              grant_view: permissions.canView,
+              grant_edit: permissions.canEdit,
+            });
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.rpc('revoke_user_folder_permission', {
+              target_user_id: selectedUserForFolders.id,
+              target_folder_id: folderId,
+            });
+            if (error) throw error;
+          }
+          setSaveProgress({ current: i + 1, total: pendingArray.length });
         }
       }
 
@@ -661,6 +844,12 @@ export default function UserManagement() {
     try {
       const role = roles.find(r => r.id === roleId);
       if (!role) return;
+
+      // Only Super Admin can assign Super Admin role
+      if (role.name === 'Super Admin' && !isCurrentUserSuperAdmin) {
+        showNotification('error', 'Permission Denied', 'Only Super Admin can assign the Super Admin role.');
+        return;
+      }
 
       // Optimistically update UI first
       setUsers(prevUsers =>
@@ -920,6 +1109,11 @@ export default function UserManagement() {
 
   // Open delete confirmation modal for user (from Users & Roles tab)
   const confirmDeleteUser = (user: User) => {
+    // Prevent deletion of Super Admin
+    if (user.roles.includes('Super Admin')) {
+      showNotification('error', 'Cannot Delete', 'Super Admin accounts cannot be deleted.');
+      return;
+    }
     setDeleteUserInfo({ id: user.id, name: user.full_name, type: 'user' });
     setDeleteHoldProgress(0);
     setShowDeleteModal(true);
@@ -1158,7 +1352,10 @@ export default function UserManagement() {
       : role.name.toLowerCase().includes(roleSearchQuery.toLowerCase()) ||
         role.description?.toLowerCase().includes(roleSearchQuery.toLowerCase());
 
-    return matchesDepartment && matchesSearch;
+    // Hide Super Admin role from non-Super Admin users
+    const canAssignRole = role.name === 'Super Admin' ? isCurrentUserSuperAdmin : true;
+
+    return matchesDepartment && matchesSearch && canAssignRole;
   });
 
   return (
@@ -1268,21 +1465,23 @@ export default function UserManagement() {
               Section Permissions
             </span>
           </button>
-          <button
-            onClick={() => setActiveTab('folders')}
-            className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
-              activeTab === 'folders'
-                ? 'bg-[#3b82f6] text-white'
-                : 'bg-[#141418] border border-[#1f1f28] text-[#6b6b7a] hover:text-white hover:border-[#2a2a35]'
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              Folder Permissions
-            </span>
-          </button>
+          {canManageFolderPermissions && (
+            <button
+              onClick={() => setActiveTab('folders')}
+              className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
+                activeTab === 'folders'
+                  ? 'bg-[#3b82f6] text-white'
+                  : 'bg-[#141418] border border-[#1f1f28] text-[#6b6b7a] hover:text-white hover:border-[#2a2a35]'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                Folder Permissions
+              </span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('prospects')}
             className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
@@ -1529,24 +1728,26 @@ export default function UserManagement() {
                             )
                           )}
 
-                          {/* Delete User Button */}
-                          <button
-                            onClick={() => confirmDeleteUser(user)}
-                            disabled={deletingUser === user.id}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                            title="Delete user"
-                          >
-                            {deletingUser === user.id ? (
-                              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            )}
-                            Delete
-                          </button>
+                          {/* Delete User Button - Hidden for Super Admin */}
+                          {!user.roles.includes('Super Admin') && (
+                            <button
+                              onClick={() => confirmDeleteUser(user)}
+                              disabled={deletingUser === user.id}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-[#ea2127]/20 hover:bg-[#ea2127]/30 text-[#ea2127] rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                              title="Delete user"
+                            >
+                              {deletingUser === user.id ? (
+                                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1751,8 +1952,8 @@ export default function UserManagement() {
           </div>
         )}
 
-        {/* Folder Permissions Tab Content */}
-        {activeTab === 'folders' && (
+        {/* Folder Permissions Tab Content - Only for Super Admin, Admin, Boss */}
+        {activeTab === 'folders' && canManageFolderPermissions && (
           <div className="opacity-0 animate-[fadeSlideIn_0.5s_ease-out_forwards]" style={{ animationDelay: '200ms' }}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* User Selector */}
@@ -1774,6 +1975,10 @@ export default function UserManagement() {
                   </div>
                   <div className="space-y-2 max-h-[450px] overflow-y-auto">
                     {users
+                      .filter(user =>
+                        // Hide Client and Prospect users - they have special folder handling
+                        !user.roles.includes('Client') && !user.roles.includes('Prospect')
+                      )
                       .filter(user =>
                         folderUserSearch === '' ||
                         user.full_name.toLowerCase().includes(folderUserSearch.toLowerCase()) ||
@@ -1864,11 +2069,50 @@ export default function UserManagement() {
                         <p className="text-sm text-[#6b6b7a]">Folder permissions updated successfully</p>
                       </div>
                     ) : folderPermissionsLoading ? (
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <svg className="w-8 h-8 animate-spin text-[#3b82f6] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        <p className="text-sm text-[#6b6b7a]">Loading permissions...</p>
+                      <div className="flex flex-col items-center justify-center py-12 px-6">
+                        {/* Progress Icon */}
+                        <div className="w-16 h-16 rounded-full bg-[#3b82f6]/20 flex items-center justify-center mb-4">
+                          <svg className="w-8 h-8 animate-spin text-[#3b82f6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </div>
+
+                        <h3 className="text-lg font-semibold text-white mb-2">Saving Permissions</h3>
+
+                        {/* Progress bar */}
+                        <div className="w-full max-w-xs mb-3">
+                          <div className="h-2 bg-[#2a2a35] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] transition-all duration-300 ease-out"
+                              style={{
+                                width: saveProgress.total > 0
+                                  ? `${(saveProgress.current / saveProgress.total) * 100}%`
+                                  : '0%'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Progress text */}
+                        <p className="text-sm text-[#6b6b7a]">
+                          {saveProgress.total > 0 ? (
+                            <>
+                              <span className="text-white font-medium">{saveProgress.current}</span>
+                              <span> of </span>
+                              <span className="text-white font-medium">{saveProgress.total}</span>
+                              <span> folders processed</span>
+                            </>
+                          ) : (
+                            'Preparing...'
+                          )}
+                        </p>
+
+                        {/* Percentage */}
+                        {saveProgress.total > 0 && (
+                          <p className="text-2xl font-bold text-[#3b82f6] mt-2">
+                            {Math.round((saveProgress.current / saveProgress.total) * 100)}%
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-1">
@@ -1879,7 +2123,7 @@ export default function UserManagement() {
                         </div>
                         <div className="max-h-[400px] overflow-y-auto">
                           {allFolders.filter(isFolderVisible).map((folder) => {
-                            const permission = getFolderPermission(folder.id);
+                            const permission = getFolderPermission(folder.id, folder.path);
                             const hasChanges = pendingFolderChanges.has(folder.id);
                             const indent = folder.depth * 20;
                             const isExpanded = expandedPermissionFolders.has(folder.id);
@@ -2594,8 +2838,8 @@ export default function UserManagement() {
           </div>
         )}
 
-        {/* Folder Permissions Modal */}
-        {showFolderPermissionsModal && selectedUserForFolders && (
+        {/* Folder Permissions Modal - Only for Super Admin, Admin, Boss */}
+        {showFolderPermissionsModal && selectedUserForFolders && canManageFolderPermissions && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-[#141418] border border-[#2a2a35] rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
               <div className="border-b border-[#2a2a35] px-6 py-4 flex-shrink-0">
@@ -2638,21 +2882,124 @@ export default function UserManagement() {
                     <p className="text-sm text-[#6b6b7a]">Folder permissions updated successfully</p>
                   </div>
                 ) : folderPermissionsLoading ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <svg className="w-8 h-8 animate-spin text-[#3b82f6] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <p className="text-sm text-[#6b6b7a]">Saving permissions...</p>
+                  <div className="flex flex-col items-center justify-center py-12 px-6">
+                    {/* Progress Icon */}
+                    <div className="w-16 h-16 rounded-full bg-[#3b82f6]/20 flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 animate-spin text-[#3b82f6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </div>
+
+                    <h3 className="text-lg font-semibold text-white mb-2">Saving Permissions</h3>
+
+                    {/* Progress bar */}
+                    <div className="w-full max-w-xs mb-3">
+                      <div className="h-2 bg-[#2a2a35] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] transition-all duration-300 ease-out"
+                          style={{
+                            width: saveProgress.total > 0
+                              ? `${(saveProgress.current / saveProgress.total) * 100}%`
+                              : '0%'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Progress text */}
+                    <p className="text-sm text-[#6b6b7a]">
+                      {saveProgress.total > 0 ? (
+                        <>
+                          <span className="text-white font-medium">{saveProgress.current}</span>
+                          <span> of </span>
+                          <span className="text-white font-medium">{saveProgress.total}</span>
+                          <span> folders processed</span>
+                        </>
+                      ) : (
+                        'Preparing...'
+                      )}
+                    </p>
+
+                    {/* Percentage */}
+                    {saveProgress.total > 0 && (
+                      <p className="text-2xl font-bold text-[#3b82f6] mt-2">
+                        {Math.round((saveProgress.current / saveProgress.total) * 100)}%
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    {/* Role-based access info and custom permissions notice */}
+                    {getUserFolderAccessLevel() !== 'none' && (
+                      <div className={`flex items-start gap-3 p-3 rounded-xl mb-3 ${
+                        hasCustomPermissions()
+                          ? 'bg-[#f59e0b]/10 border border-[#f59e0b]/30'
+                          : 'bg-[#22c55e]/10 border border-[#22c55e]/30'
+                      }`}>
+                        <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${hasCustomPermissions() ? 'text-[#f59e0b]' : 'text-[#22c55e]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {hasCustomPermissions() ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          )}
+                        </svg>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${hasCustomPermissions() ? 'text-[#f59e0b]' : 'text-[#22c55e]'}`}>
+                            {hasCustomPermissions() ? 'Custom Permissions Set' : 'Role-Based Access (Default)'}
+                          </p>
+                          <p className="text-xs text-[#6b6b7a] mt-0.5">
+                            {hasCustomPermissions()
+                              ? 'This user has custom folder permissions that override their role defaults.'
+                              : getUserFolderAccessLevel() === 'full'
+                                ? 'Default: Full access to all folders based on their role.'
+                                : 'Default: Access to all folders except Legal/Documentation.'}
+                          </p>
+                        </div>
+                        {hasCustomPermissions() && (
+                          <button
+                            onClick={resetToDefaults}
+                            disabled={folderPermissionsLoading}
+                            className="px-3 py-1.5 bg-[#6b6b7a]/20 hover:bg-[#6b6b7a]/30 text-[#6b6b7a] hover:text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Reset to Defaults
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {/* Select All / Deselect All buttons */}
+                    <div className="flex items-center gap-2 pb-3 border-b border-[#2a2a35]">
+                      <button
+                        onClick={selectAllFolders}
+                        className="px-3 py-1.5 bg-[#22c55e]/20 hover:bg-[#22c55e]/30 text-[#22c55e] text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Select All
+                      </button>
+                      <button
+                        onClick={deselectAllFolders}
+                        className="px-3 py-1.5 bg-[#ef4444]/20 hover:bg-[#ef4444]/30 text-[#ef4444] text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Deselect All
+                      </button>
+                      {getUserFolderAccessLevel() !== 'none' && !hasCustomPermissions() && (
+                        <span className="ml-auto text-xs text-[#6b6b7a]">Edit to override defaults</span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-12 gap-2 pb-2 border-b border-[#2a2a35] text-xs font-medium text-[#6b6b7a] uppercase tracking-wider">
                       <div className="col-span-8">Folder</div>
                       <div className="col-span-2 text-center">View</div>
                       <div className="col-span-2 text-center">Edit</div>
                     </div>
                     {allFolders.map((folder) => {
-                      const permission = getFolderPermission(folder.id);
+                      const permission = getFolderPermission(folder.id, folder.path);
                       const hasChanges = pendingFolderChanges.has(folder.id);
                       const indent = folder.depth * 16;
 

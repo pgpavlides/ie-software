@@ -212,6 +212,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       iconPath: '/icons/FILES.svg',
       emoji: '📁',
       roles: ['Super Admin', 'Head of Software', 'Head of Electronics', 'Head Architect', 'Head Project Manager']
+    },
+    {
+      name: 'Ticketing',
+      view: 'ticketing',
+      iconPath: '/icons/TICKETING.svg',
+      emoji: '🎫',
+      roles: [] // Available to everyone
     }
   ];
 

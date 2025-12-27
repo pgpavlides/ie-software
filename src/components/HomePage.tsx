@@ -351,6 +351,19 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       roles: ['Super Admin'],
       sectionKey: null, // No database permission check - Super Admin only
     },
+    {
+      id: 'ticketing',
+      title: 'Ticketing',
+      description: 'Submit requests, report issues, and track progress',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2 2 2 0 010 4 2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 00-2-2 2 2 0 010-4 2 2 0 002-2V7a2 2 0 00-2-2H5z" />
+        </svg>
+      ),
+      accent: 'from-[#a855f7] to-[#c084fc]',
+      roles: [], // Available to everyone with permission
+      sectionKey: 'ticketing',
+    },
   ];
 
   // Filter categories based on user's roles AND database permissions
