@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DateTimePicker from 'react-datetime-picker';
 import 'react-datetime-picker/dist/DateTimePicker.css';
 import 'react-calendar/dist/Calendar.css';
@@ -14,17 +14,19 @@ import {
   getUserOvertimes,
   getCurrentUser,
   getUserDisplayNames,
-  isUserAdmin
 } from '../services/supabaseQueries';
+import supabase from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
 
 interface OvertimeManagerProps {
   // Empty interface to maintain type safety
 }
 
 export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
+  const { hasRole } = useAuthStore();
   const [personalOvertimes, setPersonalOvertimes] = useState<OvertimeEntry[]>([]);
   const [allOvertimes, setAllOvertimes] = useState<OvertimeEntry[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [hasManagerAccess, setHasManagerAccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,6 +47,46 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
   const [startDateTime, setStartDateTime] = useState<Date | null>(null);
   const [endDateTime, setEndDateTime] = useState<Date | null>(null);
 
+  // Check if user has overtime-manager section permission
+  const checkManagerPermission = useCallback(async (userId: string) => {
+    try {
+      // Super Admin always has access
+      if (hasRole('Super Admin')) {
+        return true;
+      }
+
+      // Get user's roles
+      const { data: userRoles, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role_id')
+        .eq('user_id', userId);
+
+      if (roleError || !userRoles?.length) {
+        return false;
+      }
+
+      const roleIds = userRoles.map((ur: { role_id: string }) => ur.role_id);
+
+      // Check if any role has overtime-manager access
+      const { data: permissions, error: permError } = await supabase
+        .from('role_section_permissions')
+        .select('can_access')
+        .eq('section_key', 'overtime-manager')
+        .in('role_id', roleIds)
+        .eq('can_access', true);
+
+      if (permError) {
+        console.error('Error checking overtime-manager permission:', permError);
+        return false;
+      }
+
+      return permissions && permissions.length > 0;
+    } catch (error) {
+      console.error('Error checking overtime-manager permission:', error);
+      return false;
+    }
+  }, [hasRole]);
+
   useEffect(() => {
     initializeData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,14 +104,15 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
       setCurrentUserId(user.id);
       setCurrentUserDisplayName(user.displayName || user.email || 'User');
 
-      const adminStatus = await isUserAdmin();
-      setIsAdmin(adminStatus);
+      // Check for overtime-manager section permission
+      const managerAccess = await checkManagerPermission(user.id);
+      setHasManagerAccess(managerAccess);
 
       // Always load personal overtimes
       await loadPersonalOvertimes(user.id);
 
-      // Only load all overtimes if admin
-      if (adminStatus) {
+      // Only load all overtimes if has manager access
+      if (managerAccess) {
         await loadAllOvertimes();
       }
     } catch (error) {
@@ -137,7 +180,7 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
         const result = await updateOvertime(editingId, dataToSubmit);
         if (result.success) {
           await loadPersonalOvertimes(currentUserId);
-          if (isAdmin) await loadAllOvertimes();
+          if (hasManagerAccess) await loadAllOvertimes();
           resetForm();
         } else {
           alert(`Error updating overtime: ${result.error}`);
@@ -146,7 +189,7 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
         const result = await createOvertime(dataToSubmit);
         if (result.success) {
           await loadPersonalOvertimes(currentUserId);
-          if (isAdmin) await loadAllOvertimes();
+          if (hasManagerAccess) await loadAllOvertimes();
           resetForm();
         } else {
           alert(`Error creating overtime: ${result.error}`);
@@ -193,7 +236,7 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
         const result = await deleteOvertime(id);
         if (result.success) {
           await loadPersonalOvertimes(currentUserId);
-          if (isAdmin) await loadAllOvertimes();
+          if (hasManagerAccess) await loadAllOvertimes();
         } else {
           alert(`Error deleting overtime: ${result.error}`);
         }
@@ -360,7 +403,7 @@ export const OvertimeManager: React.FC<OvertimeManagerProps> = () => {
         </header>
 
         {/* Tab Navigation - Only show if admin */}
-        {isAdmin && (
+        {hasManagerAccess && (
           <div className="mb-6">
             <div className="inline-flex p-1 bg-[#141418] rounded-xl border border-[#1f1f28]">
               <button

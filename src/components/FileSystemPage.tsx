@@ -150,6 +150,7 @@ const LEGACY_ICONS: Record<string, string> = {
   layers: 'stack',
   map: 'map-pin',
   box: 'box-multiple',
+  users: 'user',
 };
 
 // Render icon from library or fallback to react-icons
@@ -203,6 +204,8 @@ interface FolderTreeItemProps {
   onSelect: (folder: FileFolder) => void;
   expandedFolders: Set<string>;
   onToggleExpand: (id: string) => void;
+  onContextMenu?: (e: React.MouseEvent, folder: FileFolder) => void;
+  canEditFolder?: (folderId: string) => boolean;
 }
 
 const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
@@ -213,7 +216,10 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
   onSelect,
   expandedFolders,
   onToggleExpand,
+  onContextMenu,
+  canEditFolder,
 }) => {
+  const canEdit = canEditFolder ? canEditFolder(folder.id) : false;
   const isExpanded = expandedFolders.has(folder.id);
   const isSelected = selectedFolderId === folder.id;
   const children = allFolders.filter((f) => f.parent_id === folder.id);
@@ -226,6 +232,12 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
           onSelect(folder);
           if (hasChildren) {
             onToggleExpand(folder.id);
+          }
+        }}
+        onContextMenu={(e) => {
+          if (canEdit && onContextMenu && !folder.is_system) {
+            e.preventDefault();
+            onContextMenu(e, folder);
           }
         }}
         className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all group ${
@@ -281,6 +293,8 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
                   onSelect={onSelect}
                   expandedFolders={expandedFolders}
                   onToggleExpand={onToggleExpand}
+                  onContextMenu={onContextMenu}
+                  canEditFolder={canEditFolder}
                 />
               ))}
           </motion.div>
@@ -655,6 +669,149 @@ const DeleteModal: React.FC<DeleteModalProps> = ({ isOpen, onClose, onConfirm, i
   );
 };
 
+// Hold-to-delete confirmation modal for sidebar folders
+interface HoldToDeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  folderName: string;
+}
+
+const HoldToDeleteModal: React.FC<HoldToDeleteModalProps> = ({ isOpen, onClose, onConfirm, folderName }) => {
+  const [loading, setLoading] = useState(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const holdDuration = 3000; // 3 seconds
+  const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const holdStartRef = useRef<number | null>(null);
+
+  const handleMouseDown = () => {
+    if (loading) return;
+    holdStartRef.current = Date.now();
+    holdIntervalRef.current = setInterval(() => {
+      if (holdStartRef.current) {
+        const elapsed = Date.now() - holdStartRef.current;
+        const progress = Math.min((elapsed / holdDuration) * 100, 100);
+        setHoldProgress(progress);
+
+        if (progress >= 100) {
+          handleConfirm();
+        }
+      }
+    }, 50);
+  };
+
+  const handleMouseUp = () => {
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+    holdStartRef.current = null;
+    if (holdProgress < 100) {
+      setHoldProgress(0);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+    setLoading(true);
+    try {
+      await onConfirm();
+      onClose();
+    } finally {
+      setLoading(false);
+      setHoldProgress(0);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (holdIntervalRef.current) {
+        clearInterval(holdIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setHoldProgress(0);
+      if (holdIntervalRef.current) {
+        clearInterval(holdIntervalRef.current);
+        holdIntervalRef.current = null;
+      }
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-[#141418] border border-[#2a2a35] rounded-2xl shadow-2xl w-full max-w-md p-6"
+      >
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#ea2127]/10 flex items-center justify-center">
+          <FiTrash2 className="w-8 h-8 text-[#ea2127]" />
+        </div>
+        <h2 className="text-xl font-bold text-white text-center mb-2">Delete Folder</h2>
+        <p className="text-[#8b8b9a] text-center mb-6">
+          Are you sure you want to delete <span className="text-white font-medium">"{folderName}"</span>?
+          This will also delete all files inside.
+        </p>
+
+        <div className="mb-4 p-4 bg-[#1a1a1f] rounded-xl border border-[#2a2a35]">
+          <p className="text-xs text-[#f59e0b] text-center mb-2">Hold the button for 3 seconds to confirm</p>
+          <div className="h-1.5 bg-[#2a2a35] rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-[#ea2127]"
+              style={{ width: `${holdProgress}%` }}
+              transition={{ duration: 0.05 }}
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 bg-[#1f1f28] hover:bg-[#2a2a38] disabled:opacity-50 text-white rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleMouseDown}
+            onTouchEnd={handleMouseUp}
+            disabled={loading}
+            className={`flex-1 px-4 py-2.5 text-white rounded-xl transition-all flex items-center justify-center gap-2 select-none ${
+              holdProgress > 0
+                ? 'bg-[#ea2127] scale-95'
+                : 'bg-[#ea2127] hover:bg-[#d11920]'
+            } ${loading ? 'opacity-50' : ''}`}
+          >
+            {loading ? (
+              <>
+                <FiLoader className="w-4 h-4 animate-spin" />
+                <span>Deleting...</span>
+              </>
+            ) : (
+              <>
+                <FiTrash2 className="w-4 h-4" />
+                <span>{holdProgress > 0 ? 'Hold...' : 'Hold to Delete'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // Move Modal with folder tree picker
 interface MoveModalProps {
   isOpen: boolean;
@@ -812,8 +969,16 @@ const FileSystemPage: React.FC = () => {
   const [linkCopied, setLinkCopied] = useState(false);
   const [initialFolderLoaded, setInitialFolderLoaded] = useState(false);
 
+  // Client/Prospect specific state
+  const [isClientUser, setIsClientUser] = useState(false);
+  const [isProspectUser, setIsProspectUser] = useState(false);
+  const [clientRootFolder, setClientRootFolder] = useState<FileFolder | null>(null);
+  const [prospectRootFolder, setProspectRootFolder] = useState<FileFolder | null>(null);
+
   // Database edit permission
   const [hasDbEditPermission, setHasDbEditPermission] = useState<boolean>(false);
+  // Folder-level edit permissions (from user_folder_permissions table)
+  const [folderEditPermissions, setFolderEditPermissions] = useState<Set<string>>(new Set());
 
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -841,6 +1006,11 @@ const FileSystemPage: React.FC = () => {
   const [iconSearch, setIconSearch] = useState('');
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
 
+  // Sidebar folder context menu state
+  const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number; folder: FileFolder } | null>(null);
+  const [holdDeleteModalOpen, setHoldDeleteModalOpen] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<FileFolder | null>(null);
+
   // Media preview state
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string; file: FileItem } | null>(null);
   const [previewVideo, setPreviewVideo] = useState<{ url: string; name: string; file: FileItem } | null>(null);
@@ -856,18 +1026,73 @@ const FileSystemPage: React.FC = () => {
     return { images, videos, pdfs };
   }, [files]);
 
-  // Fetch folders
+  // Check if user is a Client or Prospect
+  const checkUserType = useCallback(async () => {
+    if (!user) return;
+
+    // Check if user is a Client
+    const { data: isClient } = await supabase.rpc('is_client_user');
+    setIsClientUser(isClient || false);
+
+    // Check if user is a Prospect
+    const { data: isProspect } = await supabase.rpc('is_prospect_user');
+    setIsProspectUser(isProspect || false);
+
+    // If client, get their root folder
+    if (isClient) {
+      const { data: clientFolderIds } = await supabase.rpc('get_client_folder_ids');
+      if (clientFolderIds && clientFolderIds.length > 0) {
+        // Get the root client folder (depth 1, under /Clients)
+        const { data: rootFolder } = await supabase
+          .from('file_folders')
+          .select('*')
+          .in('id', clientFolderIds.map((f: { folder_id: string }) => f.folder_id))
+          .eq('depth', 1)
+          .single();
+
+        if (rootFolder) {
+          setClientRootFolder(rootFolder);
+        }
+      }
+    }
+
+    // If prospect, get their root folder (same pattern as client)
+    if (isProspect) {
+      const { data: prospectFolderIds } = await supabase.rpc('get_prospect_folder_ids');
+      if (prospectFolderIds && prospectFolderIds.length > 0) {
+        // Get the root prospect folder (depth 1, under /Prospects)
+        const { data: rootFolder } = await supabase
+          .from('file_folders')
+          .select('*')
+          .in('id', prospectFolderIds.map((f: { folder_id: string }) => f.folder_id))
+          .eq('depth', 1)
+          .single();
+
+        if (rootFolder) {
+          setProspectRootFolder(rootFolder);
+        }
+      }
+    }
+  }, [user]);
+
+  // Fetch folders using the permission-aware function
   const fetchFolders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('file_folders')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
+    // Use RPC function that respects folder permissions and includes parent folders for tree navigation
+    const { data, error } = await supabase.rpc('get_accessible_folders_with_parents');
 
     if (error) {
       console.error('Error fetching folders:', error);
+      // Fallback to empty if function doesn't exist yet
+      setFolders([]);
     } else {
-      setFolders(data || []);
+      // Sort the results since RPC doesn't guarantee order
+      const sorted = (data || []).sort((a: FileFolder, b: FileFolder) => {
+        if (a.sort_order !== b.sort_order) {
+          return (a.sort_order || 0) - (b.sort_order || 0);
+        }
+        return a.name.localeCompare(b.name);
+      });
+      setFolders(sorted);
     }
   }, []);
 
@@ -895,17 +1120,38 @@ const FileSystemPage: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      await checkUserType();
       await fetchFolders();
       setLoading(false);
     };
     load();
-  }, [fetchFolders]);
+  }, [fetchFolders, checkUserType]);
 
   // Navigate to folder from URL parameter after folders are loaded
+  // For clients: auto-select their folder
   useEffect(() => {
     if (loading || initialFolderLoaded || folders.length === 0) return;
 
     const folderId = searchParams.get('folder');
+
+    // If client user, auto-navigate to their folder
+    if (isClientUser && clientRootFolder && !folderId) {
+      setSelectedFolder(clientRootFolder);
+      fetchFiles(clientRootFolder.id);
+      setExpandedFolders(new Set([clientRootFolder.id]));
+      setInitialFolderLoaded(true);
+      return;
+    }
+
+    // If prospect user, auto-navigate to their folder (same as client)
+    if (isProspectUser && prospectRootFolder && !folderId) {
+      setSelectedFolder(prospectRootFolder);
+      fetchFiles(prospectRootFolder.id);
+      setExpandedFolders(new Set([prospectRootFolder.id]));
+      setInitialFolderLoaded(true);
+      return;
+    }
+
     if (folderId) {
       const folder = folders.find(f => f.id === folderId);
       if (folder) {
@@ -924,7 +1170,7 @@ const FileSystemPage: React.FC = () => {
       }
     }
     setInitialFolderLoaded(true);
-  }, [loading, folders, searchParams, initialFolderLoaded, fetchFiles]);
+  }, [loading, folders, searchParams, initialFolderLoaded, fetchFiles, isClientUser, clientRootFolder, isProspectUser, prospectRootFolder]);
 
   // Update URL when folder changes
   const navigateToFolder = useCallback((folder: FileFolder | null) => {
@@ -999,6 +1245,39 @@ const FileSystemPage: React.FC = () => {
     checkEditPermission();
   }, [user, hasRole, actualRoles]);
 
+  // Fetch folder-level edit permissions
+  useEffect(() => {
+    const fetchFolderEditPermissions = async () => {
+      if (!user) {
+        setFolderEditPermissions(new Set());
+        return;
+      }
+
+      // Super Admin has all permissions
+      if (hasRole('Super Admin')) {
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_folder_permissions')
+          .select('folder_id')
+          .eq('user_id', user.id)
+          .eq('can_edit', true);
+
+        if (error) throw error;
+
+        const editableFolderIds = new Set((data || []).map((p: { folder_id: string }) => p.folder_id));
+        setFolderEditPermissions(editableFolderIds);
+      } catch (error) {
+        console.error('Error fetching folder edit permissions:', error);
+        setFolderEditPermissions(new Set());
+      }
+    };
+
+    fetchFolderEditPermissions();
+  }, [user, hasRole]);
+
   // Fetch files when folder changes
   useEffect(() => {
     fetchFiles(selectedFolder?.id || null);
@@ -1033,7 +1312,22 @@ const FileSystemPage: React.FC = () => {
   }, [currentItems, searchQuery]);
 
   // Root folders for sidebar
-  const rootFolders = useMemo(() => folders.filter((f) => f.depth === 0), [folders]);
+  // For clients: show their personal folder as root
+  // For prospects: show their personal folder as root (same as clients)
+  // For regular users: show depth 0 folders (but hide "Clients" folder)
+  const rootFolders = useMemo(() => {
+    if (isClientUser) {
+      // Client users only see their own folder (or nothing if not created yet)
+      return clientRootFolder ? [clientRootFolder] : [];
+    }
+    if (isProspectUser) {
+      // Prospect users only see their own folder (or nothing if not created yet)
+      return prospectRootFolder ? [prospectRootFolder] : [];
+    }
+    // Regular users see all root folders except "Clients" (it's hidden from non-admins)
+    // The RLS will handle what's visible
+    return folders.filter((f) => f.depth === 0);
+  }, [folders, isClientUser, clientRootFolder, isProspectUser, prospectRootFolder]);
 
   // Handlers
   const handleSelectFolder = (folder: FileFolder) => {
@@ -1418,6 +1712,47 @@ const FileSystemPage: React.FC = () => {
     setContextMenu(null);
   }, []);
 
+  // Sidebar folder context menu handlers
+  const handleSidebarContextMenu = useCallback((e: React.MouseEvent, folder: FileFolder) => {
+    e.preventDefault();
+    setSidebarContextMenu({ x: e.clientX, y: e.clientY, folder });
+  }, []);
+
+  const closeSidebarContextMenu = useCallback(() => {
+    setSidebarContextMenu(null);
+  }, []);
+
+  const handleDeleteSidebarFolder = async () => {
+    if (!folderToDelete) return;
+
+    const { error } = await supabase
+      .from('file_folders')
+      .delete()
+      .eq('id', folderToDelete.id);
+
+    if (error) {
+      console.error('Error deleting folder:', error);
+      alert('Failed to delete folder');
+    } else {
+      await fetchFolders();
+      // If the deleted folder was selected, deselect it
+      if (selectedFolder?.id === folderToDelete.id) {
+        setSelectedFolder(null);
+        setFiles([]);
+      }
+    }
+    setFolderToDelete(null);
+  };
+
+  // Close sidebar context menu on click outside
+  useEffect(() => {
+    const handleClick = () => closeSidebarContextMenu();
+    if (sidebarContextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [sidebarContextMenu, closeSidebarContextMenu]);
+
   // Close context menu on click outside
   useEffect(() => {
     const handleClick = () => closeContextMenu();
@@ -1633,8 +1968,17 @@ const FileSystemPage: React.FC = () => {
     }
   };
 
-  // Super Admin always has edit access, otherwise check database permission
-  const canEdit = hasRole('Super Admin') || hasDbEditPermission;
+  // Helper function to check if user can edit a specific folder
+  // Super Admin or hasDbEditPermission = can edit all folders
+  // Otherwise, check folder-level permission
+  const canEditFolderFn = (folderId: string): boolean => {
+    if (hasRole('Super Admin')) return true;
+    if (hasDbEditPermission) return true;
+    return folderEditPermissions.has(folderId);
+  };
+
+  // Can edit current folder (used for toolbar buttons and actions)
+  const canEdit = selectedFolder ? canEditFolderFn(selectedFolder.id) : (hasRole('Super Admin') || hasDbEditPermission);
 
   if (loading) {
     return (
@@ -1836,18 +2180,31 @@ const FileSystemPage: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              {rootFolders.map((folder) => (
-                <FolderTreeItem
-                  key={folder.id}
-                  folder={folder}
-                  allFolders={folders}
-                  depth={0}
-                  selectedFolderId={selectedFolder?.id || null}
-                  onSelect={handleSelectFolder}
-                  expandedFolders={expandedFolders}
-                  onToggleExpand={handleToggleExpand}
-                />
-              ))}
+              {rootFolders.length === 0 && (isClientUser || isProspectUser) ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 rounded-xl bg-[#f59e0b]/10 flex items-center justify-center mb-3">
+                    <FiLoader className="w-6 h-6 text-[#f59e0b] animate-spin" />
+                  </div>
+                  <p className="text-sm text-[#6b6b7a]">
+                    Setting up your folder...
+                  </p>
+                </div>
+              ) : (
+                rootFolders.map((folder) => (
+                  <FolderTreeItem
+                    key={folder.id}
+                    folder={folder}
+                    allFolders={folders}
+                    depth={0}
+                    selectedFolderId={selectedFolder?.id || null}
+                    onSelect={handleSelectFolder}
+                    expandedFolders={expandedFolders}
+                    onToggleExpand={handleToggleExpand}
+                    onContextMenu={handleSidebarContextMenu}
+                    canEditFolder={canEditFolderFn}
+                  />
+                ))
+              )}
             </div>
           </div>
         </aside>
@@ -1888,13 +2245,45 @@ const FileSystemPage: React.FC = () => {
           {/* Content */}
           {!selectedFolder ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-[#1a1a1f] flex items-center justify-center mb-4">
-                <FiFolder className="w-10 h-10 text-[#3a3a48]" />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Select a folder</h3>
-              <p className="text-[#6b6b7a] max-w-sm">
-                Choose a folder from the sidebar to view its contents.
-              </p>
+              {(isClientUser && !clientRootFolder) || (isProspectUser && !prospectRootFolder) ? (
+                <>
+                  <div className="w-20 h-20 rounded-2xl bg-[#f59e0b]/10 flex items-center justify-center mb-4">
+                    <FiLoader className="w-10 h-10 text-[#f59e0b] animate-spin" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Setting Up Your Folder</h3>
+                  <p className="text-[#6b6b7a] max-w-sm">
+                    Your folder will be created for you shortly. Please check back in a moment.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-20 h-20 rounded-2xl bg-[#1a1a1f] flex items-center justify-center mb-4">
+                    <FiFolder className="w-10 h-10 text-[#3a3a48]" />
+                  </div>
+                  {isClientUser ? (
+                    <>
+                      <h3 className="text-lg font-semibold text-white mb-2">Welcome to Your Files</h3>
+                      <p className="text-[#6b6b7a] max-w-sm">
+                        Select your folder from the sidebar to view your documents and files.
+                      </p>
+                    </>
+                  ) : isProspectUser ? (
+                    <>
+                      <h3 className="text-lg font-semibold text-white mb-2">Preview Access</h3>
+                      <p className="text-[#6b6b7a] max-w-sm">
+                        Select a folder from the sidebar to preview available content.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-semibold text-white mb-2">Select a folder</h3>
+                      <p className="text-[#6b6b7a] max-w-sm">
+                        Choose a folder from the sidebar to view its contents.
+                      </p>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           ) : filteredItems.folders.length === 0 && filteredItems.files.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -2068,6 +2457,77 @@ const FileSystemPage: React.FC = () => {
         selectedCount={selectedItems.size}
         excludeFolderIds={excludedFolderIds}
       />
+
+      <HoldToDeleteModal
+        isOpen={holdDeleteModalOpen}
+        onClose={() => {
+          setHoldDeleteModalOpen(false);
+          setFolderToDelete(null);
+        }}
+        onConfirm={handleDeleteSidebarFolder}
+        folderName={folderToDelete?.name || ''}
+      />
+
+      {/* Sidebar Context Menu */}
+      <AnimatePresence>
+        {sidebarContextMenu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            className="fixed z-50 bg-[#1a1a1f] border border-[#2a2a35] rounded-xl shadow-2xl py-2 min-w-[160px]"
+            style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setItemToEdit({ item: sidebarContextMenu.folder, isFolder: true });
+                setRenameModalOpen(true);
+                closeSidebarContextMenu();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+            >
+              <FiEdit2 className="w-4 h-4" />
+              <span className="text-sm">Rename</span>
+            </button>
+            <button
+              onClick={() => {
+                setContextMenu({ x: sidebarContextMenu.x, y: sidebarContextMenu.y, item: sidebarContextMenu.folder, isFolder: true });
+                setIconPickerOpen(true);
+                closeSidebarContextMenu();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+            >
+              <FiBox className="w-4 h-4" />
+              <span className="text-sm">Change Icon</span>
+            </button>
+            <button
+              onClick={() => {
+                setContextMenu({ x: sidebarContextMenu.x, y: sidebarContextMenu.y, item: sidebarContextMenu.folder, isFolder: true });
+                setColorPickerOpen(true);
+                closeSidebarContextMenu();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#8b8b9a] hover:text-white hover:bg-[#2a2a35] transition-colors"
+            >
+              <FiDroplet className="w-4 h-4" />
+              <span className="text-sm">Change Color</span>
+            </button>
+            <div className="border-t border-[#2a2a35] my-1" />
+            <button
+              onClick={() => {
+                setFolderToDelete(sidebarContextMenu.folder);
+                setHoldDeleteModalOpen(true);
+                closeSidebarContextMenu();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#ea2127] hover:bg-[#ea2127]/10 transition-colors"
+            >
+              <FiTrash2 className="w-4 h-4" />
+              <span className="text-sm">Delete</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Context Menu */}
       <AnimatePresence>

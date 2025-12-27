@@ -35,7 +35,8 @@
       "Bash(then echo \"OK: $icon.svg\")",
       "Bash(else echo \"MISSING: $icon.svg\")",
       "Bash(fi)",
-      "Bash(done)"
+      "Bash(done)",
+      "mcp__plugin_supabase_supabase__deploy_edge_function"
     ],
     "deny": []
   }
