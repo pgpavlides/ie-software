@@ -364,6 +364,51 @@ export default function HomePage({ onSelectCategory }: HomePageProps) {
       roles: [], // Available to everyone with permission
       sectionKey: 'ticketing',
     },
+    {
+      id: 'ticket-manager',
+      title: 'Ticket Manager',
+      description: 'Manage and review all tickets across the system',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M17 2H7a3 3 0 00-3 3v2a2 2 0 002 2 2 2 0 010 4 2 2 0 00-2 2v2a3 3 0 003 3h10a3 3 0 003-3v-2a2 2 0 00-2-2 2 2 0 010-4 2 2 0 002-2V5a3 3 0 00-3-3z" />
+          <path d="M9 10h6M9 14h4" />
+        </svg>
+      ),
+      accent: 'from-[#f59e0b] to-[#fbbf24]',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'],
+      sectionKey: 'ticket-manager',
+    },
+    {
+      id: 'task-manager',
+      title: 'Task Manager',
+      description: 'Manage and monitor all tasks across departments',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+          <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <path d="M9 14l2 2 4-4" />
+          <path d="M9 10h6" />
+        </svg>
+      ),
+      accent: 'from-[#f59e0b] to-[#d97706]',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'],
+      sectionKey: 'task-manager',
+    },
+    {
+      id: 'overtime-manager',
+      title: 'Overtime Manager',
+      description: 'Manage and analyze all employee overtime hours',
+      icon: (
+        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+          <path d="M17 17l2 2M7 17l-2 2" />
+        </svg>
+      ),
+      accent: 'from-[#10b981] to-[#059669]',
+      roles: ['Super Admin', 'Admin', 'Boss'],
+      sectionKey: 'overtime-manager',
+    },
   ];
 
   // Filter categories based on user's roles AND database permissions

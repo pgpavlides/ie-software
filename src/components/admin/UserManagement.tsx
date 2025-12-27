@@ -73,7 +73,9 @@ const AVAILABLE_SECTIONS = [
   { key: 'inventory', name: 'Inventory', icon: '📦', description: 'Inventory management', hasEditPermission: true },
   { key: 'tasks', name: 'Tasks', icon: '📋', description: 'Task management', hasEditPermission: false },
   { key: 'files', name: 'Files', icon: '📁', description: 'File system browser', hasEditPermission: true },
-  { key: 'ticketing', name: 'Ticketing', icon: '🎫', description: 'Ticketing system (Edit = view all tickets)', hasEditPermission: true },
+  { key: 'ticketing', name: 'Ticketing', icon: '🎫', description: 'Ticketing system', hasEditPermission: false },
+  { key: 'ticket-manager', name: 'Ticket Manager', icon: '📋', description: 'Manage all tickets across the system', hasEditPermission: false },
+  { key: 'task-manager', name: 'Task Manager', icon: '📊', description: 'Manage all tasks across departments', hasEditPermission: false },
 ];
 
 export default function UserManagement() {

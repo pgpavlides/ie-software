@@ -23,11 +23,14 @@ import OrderListPage from './components/OrderListPage';
 import TasksPage from './components/TasksPage';
 import FileSystemPage from './components/FileSystemPage';
 import TicketingPage from './components/TicketingPage';
+import TicketManagerPage from './components/TicketManagerPage';
+import TaskManagerPage from './components/TaskManagerPage';
+import OvertimeManagerPage from './components/OvertimeManagerPage';
 import { useAuthStore } from './store/authStore';
 import { useEffect, useState } from 'react';
 import supabase from './lib/supabase';
 
-type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files' | 'ticketing';
+type CategoryType = 'dashboard' | 'room' | 'guides' | 'utilities' | 'overtimes' | 'components' | 'map' | 'admin/users' | 'inventory' | 'tasks' | 'profile' | 'files' | 'ticketing' | 'ticket-manager' | 'task-manager' | 'overtime-manager';
 
 // Router-aware components
 function AppContent() {
@@ -48,6 +51,9 @@ function AppContent() {
     if (location.pathname.startsWith('/profile')) return 'profile';
     if (location.pathname.startsWith('/files')) return 'files';
     if (location.pathname.startsWith('/ticketing')) return 'ticketing';
+    if (location.pathname.startsWith('/ticket-manager')) return 'ticket-manager';
+    if (location.pathname.startsWith('/task-manager')) return 'task-manager';
+    if (location.pathname.startsWith('/overtime-manager')) return 'overtime-manager';
     return 'dashboard';
   };
 
@@ -91,6 +97,15 @@ function AppContent() {
         break;
       case 'ticketing':
         navigate('/ticketing');
+        break;
+      case 'ticket-manager':
+        navigate('/ticket-manager');
+        break;
+      case 'task-manager':
+        navigate('/task-manager');
+        break;
+      case 'overtime-manager':
+        navigate('/overtime-manager');
         break;
     }
   };
@@ -359,6 +374,9 @@ const ROUTE_ROLES = {
   tasks: [],
   profile: [],
   ticketing: [], // Available to everyone
+  'ticket-manager': ['Super Admin', 'Boss', 'Efficiency Coordinator'], // Ticket management
+  'task-manager': ['Super Admin', 'Boss', 'Efficiency Coordinator'], // Task management
+  'overtime-manager': ['Super Admin', 'Admin', 'Boss'], // Overtime management
 };
 
 function App() {
@@ -445,6 +463,9 @@ function App() {
               <Route path="tasks" element={<RouteGuard allowedRoles={ROUTE_ROLES.tasks} sectionKey="tasks"><TasksPage /></RouteGuard>} />
               <Route path="files" element={<RouteGuard allowedRoles={ROUTE_ROLES.files} sectionKey="files"><FileSystemPage /></RouteGuard>} />
               <Route path="ticketing" element={<RouteGuard allowedRoles={ROUTE_ROLES.ticketing} sectionKey="ticketing"><TicketingPage /></RouteGuard>} />
+              <Route path="ticket-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['ticket-manager']} sectionKey="ticket-manager"><TicketManagerPage /></RouteGuard>} />
+              <Route path="task-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['task-manager']} sectionKey="task-manager"><TaskManagerPage /></RouteGuard>} />
+              <Route path="overtime-manager" element={<RouteGuard allowedRoles={ROUTE_ROLES['overtime-manager']} sectionKey="overtime-manager"><OvertimeManagerPage /></RouteGuard>} />
             </Route>
           </Routes>
         </DeveloperOptionsProvider>

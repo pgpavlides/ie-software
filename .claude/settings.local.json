@@ -36,7 +36,11 @@
       "Bash(else echo \"MISSING: $icon.svg\")",
       "Bash(fi)",
       "Bash(done)",
-      "mcp__plugin_supabase_supabase__deploy_edge_function"
+      "mcp__plugin_supabase_supabase__deploy_edge_function",
+      "Bash(for file in /mnt/c/Users/pgpav/Documents/GitHub/ie-software/supabase/migrations/*.sql)",
+      "Bash(do if grep -q \"role_section_permissions\" \"$file\")",
+      "Bash(then echo \"=== $file ===\" grep -B 5 -A 20 \"role_section_permissions\" \"$file\")",
+      "Bash(npx tsx:*)"
     ],
     "deny": []
   }

@@ -219,6 +219,27 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onToggleComm
       iconPath: '/icons/TICKETING.svg',
       emoji: '🎫',
       roles: [] // Available to everyone
+    },
+    {
+      name: 'Ticket Manager',
+      view: 'ticket-manager',
+      iconPath: '/icons/TICKET_MANAGER.svg',
+      emoji: '📋',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'] // Manager access only
+    },
+    {
+      name: 'Task Manager',
+      view: 'task-manager',
+      iconPath: '/icons/TASK_MANAGER.svg',
+      emoji: '📊',
+      roles: ['Super Admin', 'Boss', 'Efficiency Coordinator'] // Manager access only
+    },
+    {
+      name: 'Overtime Manager',
+      view: 'overtime-manager',
+      iconPath: '/icons/OVERTIME_MANAGER.svg',
+      emoji: '⏱️',
+      roles: ['Super Admin', 'Admin', 'Boss'] // Manager access only
     }
   ];
 

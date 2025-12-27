@@ -16,8 +16,6 @@ import {
   FiFilter,
   FiLoader,
   FiRefreshCw,
-  FiUser,
-  FiUsers,
   FiImage,
   FiTrash2,
   FiPaperclip,
@@ -186,13 +184,11 @@ export default function TicketingPage() {
   const [comments, setComments] = useState<TicketComment[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTicketType, setSelectedTicketType] = useState<TicketType | null>(null);
-  const [viewMode, setViewMode] = useState<'my' | 'all'>('my');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [ticketAttachments, setTicketAttachments] = useState<TicketAttachment[]>([]);
-  const [canViewAllTickets, setCanViewAllTickets] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -207,53 +203,10 @@ export default function TicketingPage() {
     leave_type: 'vacation',
   });
 
-  // Check if user has edit permission for ticketing (can view all tickets)
-  useEffect(() => {
-    const checkEditPermission = async () => {
-      if (!user) return;
-
-      // Super Admin always has access
-      if (hasRole('Super Admin')) {
-        setCanViewAllTickets(true);
-        return;
-      }
-
-      try {
-        // Get user's role IDs
-        const { data: userRoles } = await supabase
-          .from('user_roles')
-          .select('role_id')
-          .eq('user_id', user.id);
-
-        if (!userRoles || userRoles.length === 0) {
-          setCanViewAllTickets(false);
-          return;
-        }
-
-        const roleIds = userRoles.map((ur: { role_id: string }) => ur.role_id);
-
-        // Check if any role has edit permission for ticketing
-        const { data: permissions } = await supabase
-          .from('role_section_permissions')
-          .select('can_edit')
-          .eq('section_key', 'ticketing')
-          .in('role_id', roleIds)
-          .eq('can_edit', true);
-
-        setCanViewAllTickets(!!(permissions && permissions.length > 0));
-      } catch (error) {
-        console.error('Error checking ticketing edit permission:', error);
-        setCanViewAllTickets(false);
-      }
-    };
-
-    checkEditPermission();
-  }, [user, hasRole]);
-
-  // Check if user is a ticket manager (for status updates)
+  // Check if user is a ticket manager (for status updates - used in Ticket Manager page)
   const isTicketManager = useMemo(() => {
-    return TICKET_MANAGERS.some(role => hasRole(role)) || canViewAllTickets;
-  }, [hasRole, canViewAllTickets]);
+    return TICKET_MANAGERS.some(role => hasRole(role));
+  }, [hasRole]);
 
   // Check if user can delete tickets (managers + heads)
   const canDeleteTicket = useMemo(() => {
@@ -280,6 +233,7 @@ export default function TicketingPage() {
   }, [isClientOrProspect]);
 
   // Fetch tickets
+  // Fetch user's own tickets only (All Tickets view moved to Ticket Manager)
   const fetchTickets = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -288,12 +242,8 @@ export default function TicketingPage() {
       let query = supabase
         .from('tickets')
         .select('*')
+        .eq('created_by', user.id)
         .order('created_at', { ascending: false });
-
-      // If not in 'all' mode or not a manager, only show own tickets
-      if (viewMode === 'my' || !isTicketManager) {
-        query = query.eq('created_by', user.id);
-      }
 
       // Apply status filter
       if (statusFilter !== 'all') {
@@ -309,7 +259,7 @@ export default function TicketingPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, viewMode, statusFilter, isTicketManager]);
+  }, [user, statusFilter]);
 
   // Fetch comments for a ticket
   const fetchComments = useCallback(async (ticketId: string) => {
@@ -649,27 +599,6 @@ export default function TicketingPage() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 mb-6">
-          {isTicketManager && (
-            <div className="flex bg-[#1a1a23] rounded-lg border border-[#2a2a35] overflow-hidden">
-              <button
-                onClick={() => setViewMode('my')}
-                className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${
-                  viewMode === 'my' ? 'bg-[#ea2127] text-white' : 'text-[#6b6b7a] hover:text-white'
-                }`}
-              >
-                <FiUser className="w-4 h-4" /> My Tickets
-              </button>
-              <button
-                onClick={() => setViewMode('all')}
-                className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${
-                  viewMode === 'all' ? 'bg-[#ea2127] text-white' : 'text-[#6b6b7a] hover:text-white'
-                }`}
-              >
-                <FiUsers className="w-4 h-4" /> All Tickets
-              </button>
-            </div>
-          )}
-
           <div className="flex items-center gap-2">
             <FiFilter className="w-4 h-4 text-[#6b6b7a]" />
             <select
